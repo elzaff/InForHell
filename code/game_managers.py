@@ -1,17 +1,17 @@
 """
 LAYER 5: Management Systems - GameState, SpawnManager, CollisionManager
-Implementasi sesuai class diagram
+Implementasi sesuai class diagram.
 """
 from settings import *
 import pygame
 from random import choice
-
+from typing import Optional, List, Dict, Tuple, Any
 
 # ==================== GAME STATE ====================
 
 class GameState:
     """
-    Manage game state dengan encapsulation
+    Mengelola state game dengan encapsulation.
     Properties: __is_running, __is_paused, __is_game_over, __score, __start_time
     Methods: calculate_score(player_stats), toggle_pause()
     """
@@ -25,49 +25,49 @@ class GameState:
         self.__score = 0
     
     @property
-    def is_running(self):
+    def is_running(self) -> bool:
         return self.__is_running
     
     @property
-    def is_paused(self):
+    def is_paused(self) -> bool:
         return self.__is_paused
     
     @property
-    def is_game_over(self):
+    def is_game_over(self) -> bool:
         return self.__is_game_over
     
     @property
-    def elapsed_time(self):
-        """Get elapsed time in seconds - frozen saat game over"""
+    def elapsed_time(self) -> float:
+        """Mengembalikan waktu berlalu dalam detik - berhenti saat game over"""
         if self.__is_game_over and self.__game_over_time > 0:
             # Return waktu saat game over (frozen)
             return (self.__game_over_time - self.__start_time) / 1000
         else:
-            # Return waktu current (masih bermain)
+            # Return waktu saat ini (masih bermain)
             return (pygame.time.get_ticks() - self.__start_time) / 1000
     
     @property
-    def score(self):
+    def score(self) -> int:
         return self.__score
     
-    def stop_game(self):
-        """Stop game loop"""
+    def stop_game(self) -> None:
+        """Menghentikan game loop"""
         self.__is_running = False
     
-    def toggle_pause(self):
-        """Toggle pause state"""
+    def toggle_pause(self) -> None:
+        """Mengubah status pause"""
         self.__is_paused = not self.__is_paused
     
-    def set_game_over(self):
-        """Set game over state dan freeze waktu"""
+    def set_game_over(self) -> None:
+        """Set status game over dan bekukan waktu"""
         if not self.__is_game_over:
             self.__is_game_over = True
             self.__game_over_time = pygame.time.get_ticks()  # Simpan waktu saat game over
     
-    def calculate_score(self, player_stats):
+    def calculate_score(self, player_stats: Any) -> int:
         """
-        Calculate score based on kills, level, and time
-        Formula: (kills * 100) + (level * 500) + (time * 10)
+        Menghitung skor berdasarkan kills, level, dan waktu.
+        Rumus: (kills * 100) + (level * 500) + (time * 10)
         """
         kills_score = player_stats.kills * 100
         level_score = player_stats.level * 500
@@ -80,12 +80,12 @@ class GameState:
 
 class SpawnManager:
     """
-    Manage enemy spawning dengan difficulty scaling
+    Mengelola kemunculan musuh dengan skala kesulitan.
     Properties: __spawn_positions, __difficulty
     Methods: spawn_enemy(), update_difficulty(time), should_spawn()
     """
     
-    def __init__(self, spawn_positions, enemy_frames):
+    def __init__(self, spawn_positions: List[Tuple[int, int]], enemy_frames: Dict[str, List[pygame.Surface]]):
         self.__spawn_positions = spawn_positions
         self.__enemy_frames = enemy_frames
         self.__spawn_interval = ENEMY_SPAWN_INTERVAL
@@ -94,38 +94,39 @@ class SpawnManager:
         self.__enemies_spawned = 0
     
     @property
-    def difficulty_multiplier(self):
+    def difficulty_multiplier(self) -> float:
         return self.__difficulty_multiplier
     
     @property
-    def enemies_spawned(self):
+    def enemies_spawned(self) -> int:
         return self.__enemies_spawned
     
-    def update_difficulty(self, elapsed_time: float):
+    def update_difficulty(self, elapsed_time: float) -> None:
         """
-        Increase difficulty over time
-        Every 30 seconds: +20% difficulty, reduce spawn interval
+        Meningkatkan kesulitan seiring waktu.
+        Setiap 30 detik: +20% kesulitan, kurangi interval spawn.
         """
-        # Increase difficulty multiplier
+        # Tingkatkan multiplier kesulitan
         self.__difficulty_multiplier = 1.0 + (elapsed_time // 30) * 0.2
         
-        # Reduce spawn interval (faster spawning)
+        # Kurangi interval spawn (spawn lebih cepat)
         self.__spawn_interval = max(500, ENEMY_SPAWN_INTERVAL - int(elapsed_time * 10))
     
     def should_spawn(self) -> bool:
-        """Check if it's time to spawn enemy"""
+        """Cek apakah waktunya memunculkan musuh"""
         current_time = pygame.time.get_ticks()
         if current_time - self.__last_spawn_time >= self.__spawn_interval:
             self.__last_spawn_time = current_time
             return True
         return False
     
-    def spawn_enemy(self, groups, player, collision_sprites, enemy_factory):
+    def spawn_enemy(self, groups: Tuple[pygame.sprite.Group, ...], player: pygame.sprite.Sprite, 
+                   collision_sprites: pygame.sprite.Group, enemy_factory: Any) -> Optional[Any]:
         """
-        Spawn random enemy at random position far from player
-        Returns: spawned enemy or None
+        Memunculkan musuh acak di posisi acak yang jauh dari player.
+        Returns: musuh yang dimunculkan atau None.
         """
-        # Choose spawn position far from player
+        # Pilih posisi spawn yang jauh dari player
         player_pos = pygame.Vector2(player.rect.center)
         valid_positions = []
         
@@ -148,7 +149,7 @@ class SpawnManager:
             return enemy
         return None
     
-    def reset(self):
+    def reset(self) -> None:
         """Reset spawn manager"""
         self.__last_spawn_time = pygame.time.get_ticks()
         self.__difficulty_multiplier = 1.0
@@ -159,17 +160,17 @@ class SpawnManager:
 
 class CollisionManager:
     """
-    Manage all collision detection
+    Mengelola semua deteksi tabrakan.
     Methods: check_bullet_enemy(), check_player_enemy(), check_player_item()
     """
     
-    def __init__(self, impact_sound=None):
+    def __init__(self, impact_sound: Optional[pygame.mixer.Sound] = None):
         self.__impact_sound = impact_sound
     
-    def check_bullet_enemy(self, bullet_sprites, enemy_sprites, player) -> dict:
+    def check_bullet_enemy(self, bullet_sprites: pygame.sprite.Group, enemy_sprites: pygame.sprite.Group, player: Any) -> Dict[str, Any]:
         """
-        Check collision between bullets and enemies
-        Returns: dict with 'kills', 'exp_gained', 'level_up'
+        Cek tabrakan antara peluru dan musuh.
+        Returns: dict dengan 'kills', 'exp_gained', 'level_up'
         """
         result = {
             'kills': 0,
@@ -191,7 +192,7 @@ class CollisionManager:
                         # take_damage return True jika enemy baru mati
                         just_died = enemy.take_damage(bullet.damage)
                         
-                        # Give EXP and kill count hanya jika baru mati
+                        # Berikan EXP dan kill count hanya jika baru mati
                         if just_died:
                             exp_reward = enemy.give_exp_reward()
                             if exp_reward > 0:
@@ -207,10 +208,10 @@ class CollisionManager:
         
         return result
     
-    def check_player_enemy(self, player, enemy_sprites) -> bool:
+    def check_player_enemy(self, player: Any, enemy_sprites: pygame.sprite.Group) -> bool:
         """
-        Check collision between player and enemies
-        Returns: True if player took damage
+        Cek tabrakan antara player dan musuh.
+        Returns: True jika player menerima damage.
         """
         if player.stats.is_alive:
             collided_enemies = pygame.sprite.spritecollide(
@@ -218,29 +219,29 @@ class CollisionManager:
             )
             
             if collided_enemies:
-                # Take damage from all colliding enemies
+                # Terima damage dari semua musuh yang bertabrakan
                 for enemy in collided_enemies:
                     if not enemy.is_dead:
                         player.take_damage(enemy.damage)
                 return True
         return False
     
-    def check_player_item(self, player, item_sprites) -> list:
+    def check_player_item(self, player: Any, item_sprites: pygame.sprite.Group) -> List[Any]:
         """
-        Check collision between player and items
-        Returns: list of picked items
+        Cek tabrakan antara player dan item.
+        Returns: list item yang diambil.
         """
         picked_items = []
         
-        # Check attraction first
+        # Cek attraction (tarikan magnet) terlebih dahulu
         player_pos = pygame.Vector2(player.rect.center)
         for item in item_sprites:
             if hasattr(item, 'check_attraction'):
                 item.check_attraction(player_pos)
             if hasattr(item, 'move_towards_player'):
-                item.move_towards_player(player_pos, 1/60)  # Assume 60 FPS
+                item.move_towards_player(player_pos, 1/60)  # Asumsi 60 FPS
         
-        # Check pickup collision
+        # Cek pickup collision
         collided_items = pygame.sprite.spritecollide(
             player, item_sprites, False, pygame.sprite.collide_mask
         )

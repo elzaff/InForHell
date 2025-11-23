@@ -3,7 +3,9 @@ PLAYER MODULE
 Implementasi Player class dengan PlayerStats untuk encapsulation
 """
 from settings import *
-
+from os.path import join
+from os import walk
+import pygame
 
 class PlayerStats:
     """Class untuk mengelola statistik player dengan encapsulation"""
@@ -121,54 +123,57 @@ class Player(pygame.sprite.Sprite):
     def __init__(self, pos, groups, collision_sprites):
         super().__init__(groups)
         
+        # Stats & Logic
+        self.__stats = PlayerStats()
+        self.weapon = None # WeaponDefault (auto-shoot)
+        self.active_skill = None # Skill aktif (Space/Q)
+        self.collision_sprites = collision_sprites
+        
+        # Passive Stat Modifiers
+        self.stat_modifiers = {
+            'speed': 1.0,
+            'damage': 1.0,
+            'cooldown': 1.0,
+            'max_health': 1.0
+        }
+        
         # Graphics
         self.load_images()
-        self.state, self.frame_index = 'right', 0
+        self.state, self.frame_index = 'down', 0
         self.image = pygame.image.load(join('images', 'player', 'down', '0.png')).convert_alpha()
         self.rect = self.image.get_frect(center = pos)
         self.hitbox_rect = self.rect.inflate(-60, -90)
-    
-        # Movement 
+        
+        # Movement
         self.direction = pygame.Vector2()
-        self.collision_sprites = collision_sprites
         
-        # Stats system
-        self.__stats = PlayerStats()
-        
-        # Multipliers (untuk future passive abilities)
-        self.__damage_multiplier = 1.0
-        self.__speed_multiplier = 1.0
-        
-        # Dash mechanic
-        self.__is_dashing = False
-        self.__dash_speed = 0
-        self.__dash_time = 0
-        self.__dash_duration = 0
-        
-        # Invulnerability frames
+        # Timers & States
         self.__is_invulnerable = False
         self.__invulnerable_time = 0
-        self.__invulnerable_duration = 1000
+        self.__invulnerable_duration = 500
         
-        # HP Regen passive
+        self.__is_dashing = False
+        self.__dash_time = 0
+        self.__dash_duration = 200
+        self.__dash_speed = 0
+        
         self.__last_regen = 0
         self.__regen_interval = 1000
-        self.__regen_rate = 2
+        self.__regen_rate = 1
 
-    # Getters untuk private attributes
     @property
     def stats(self):
         return self.__stats
-    
+
     @property
     def current_speed(self):
         """Get speed dengan modifier"""
-        return self.__stats.base_speed * self.__speed_multiplier
+        return self.__stats.base_speed * self.stat_modifiers['speed']
     
     @property
     def current_damage(self):
         """Get damage dengan modifier"""
-        return self.__stats.base_damage * self.__damage_multiplier
+        return self.__stats.base_damage * self.stat_modifiers['damage']
     
     def load_images(self):
         self.frames = {'left': [], 'right': [], 'up': [], 'down': []}
@@ -186,15 +191,12 @@ class Player(pygame.sprite.Sprite):
         self.direction.x = int(keys[pygame.K_RIGHT] or keys[pygame.K_d]) - int(keys[pygame.K_LEFT] or keys[pygame.K_a])
         self.direction.y = int(keys[pygame.K_DOWN] or keys[pygame.K_s]) - int(keys[pygame.K_UP] or keys[pygame.K_w])
         self.direction = self.direction.normalize() if self.direction else self.direction
+        
+        # Active Skill Input
+        if keys[pygame.K_SPACE] or keys[pygame.K_q]:
+            if self.active_skill:
+                self.active_skill.activate()
 
-    def increase_damage_multiplier(self, amount: float):
-        """Increase damage multiplier"""
-        self.__damage_multiplier += amount
-    
-    def increase_speed_multiplier(self, amount: float):
-        """Increase speed multiplier"""
-        self.__speed_multiplier += amount
-    
     def take_damage(self, damage: int):
         """Player menerima damage"""
         if not self.__is_invulnerable:
@@ -205,6 +207,10 @@ class Player(pygame.sprite.Sprite):
     def heal(self, amount: int):
         """Heal player"""
         self.__stats.heal(amount)
+        
+    def increase_regen_rate(self, amount: int):
+        """Increase HP regeneration rate"""
+        self.__regen_rate += amount
     
     def gain_exp(self, amount: int):
         """Dapat EXP dari kill"""
