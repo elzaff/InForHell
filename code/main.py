@@ -251,6 +251,7 @@ class Game:
         
         # Draw UI
         self.__ui.draw()
+        self.__ui.draw_skill_icon(self.__player.active_skill)
         
         # Draw level up notification
         self.__level_up_notification.draw(self.__display_surface)

@@ -138,7 +138,9 @@ class SpawnManager:
         
         if valid_positions:
             spawn_pos = choice(valid_positions)
-            enemy = enemy_factory.create_random_enemy(
+            enemy_type = choice(['bat', 'blob', 'skeleton'])
+            enemy = enemy_factory.create_enemy(
+                enemy_type,
                 spawn_pos, 
                 self.__enemy_frames,
                 groups,

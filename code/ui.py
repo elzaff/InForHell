@@ -207,6 +207,49 @@ class GameUI:
     def update_score(self, score: int) -> None:
         """Update tampilan skor"""
         self.__score_label.set_text(f"Score: {score}")
+        
+    def draw_skill_icon(self, skill: Any) -> None:
+        """Gambar icon skill dengan cooldown overlay"""
+        if not skill: return
+        
+        # Posisi Icon (Bottom Left, di bawah EXP bar)
+        x, y = 20, 90
+        size = 50
+        rect = pygame.Rect(x, y, size, size)
+        
+        # Background
+        pygame.draw.rect(self.__display_surface, DARK_GRAY, rect)
+        
+        # Cooldown Overlay
+        progress = skill.cooldown_progress
+        if progress < 1.0:
+            # Calculate height of overlay (inverse of progress)
+            overlay_height = int(size * (1 - progress))
+            overlay_rect = pygame.Rect(x, y + size - overlay_height, size, overlay_height)
+            
+            # Semi-transparent overlay
+            s = pygame.Surface((size, overlay_height), pygame.SRCALPHA)
+            s.fill((0, 0, 0, 150))
+            self.__display_surface.blit(s, (x, y + size - overlay_height))
+            
+            # Timer Text
+            remaining_time = (skill.cooldown * (1 - progress)) / 1000
+            timer_font = pygame.font.Font(None, 30)
+            timer_text = timer_font.render(f"{remaining_time:.1f}", True, WHITE)
+            timer_rect = timer_text.get_rect(center=rect.center)
+            self.__display_surface.blit(timer_text, timer_rect)
+        else:
+            # Glow Effect (Ready)
+            # Simple pulsing effect based on time
+            pulse = (pygame.time.get_ticks() // 200) % 2
+            color = YELLOW if pulse else (255, 215, 0) # Gold
+            pygame.draw.rect(self.__display_surface, color, rect, 3) # Border tebal
+            
+            # Ready Text
+            font = pygame.font.Font(None, 20)
+            text = font.render("Ready", True, WHITE)
+            text_rect = text.get_rect(center=rect.center)
+            self.__display_surface.blit(text, text_rect)
     
     def draw(self) -> None:
         """Gambar semua elemen UI"""

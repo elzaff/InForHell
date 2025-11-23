@@ -78,6 +78,12 @@ class AttackMechanism(Upgrade, ABC):
     def damage(self):
         return self.__damage
     
+    @property
+    def cooldown_progress(self) -> float:
+        """Return progress 0.0 to 1.0"""
+        if self.__cooldown == 0: return 1.0
+        return min(1.0, self.__timer / self.__cooldown)
+    
     def can_attack(self) -> bool:
         """Check if attack is ready (cooldown elapsed)"""
         return self.__timer >= self.__cooldown
@@ -217,12 +223,13 @@ class KeyboardRain(Skill):
         super().__init__(
             name="Keyboard Rain",
             description="Hujan keyboard yang melukai musuh",
-            cooldown=5000, # 5 detik cooldown
-            damage=20
+            cooldown=10000, # 10 detik cooldown
+            damage=100
         )
         self.__groups = groups
         self.__spawn_timer = 0
         self.__spawn_interval = 100 # Spawn setiap 100ms saat aktif
+        self.player = None
         
     def update(self, dt):
         super().update(dt)
@@ -234,27 +241,6 @@ class KeyboardRain(Skill):
                 self.attack()
                 self.__spawn_timer = current_time
                 
-    def attack(self):
-        """Spawn keyboard projectile"""
-        # Import di sini untuk menghindari circular import jika ada
-        from weapons import KeyboardProjectile
-        
-        # Spawn area: 800x600 box around player
-        # Karena kita tidak punya akses langsung ke player position di sini (kecuali kita simpan di init),
-        # kita akan spawn random di layar (asumsi camera center = player center).
-        # Tapi tunggu, kita butuh posisi absolut di world.
-        # Solusi: Kita tambahkan player ke __init__ Skill atau pass player position ke update/attack.
-        # Untuk saat ini, kita spawn di sekitar (0,0) jika tidak ada info, TAPI ini buruk.
-        # LEBIH BAIK: Kita update __init__ KeyboardRain untuk menerima player object juga.
-        
-        # Namun, mengubah signature init akan merusak inheritance jika tidak hati-hati.
-        # Mari kita gunakan spawn random di sekitar camera view (yang kita tidak tahu).
-        # ALTERNATIF: Kita spawn di random position di map? Tidak efisien.
-        
-        # FIX: Kita ubah __init__ KeyboardRain di main.py untuk menerima player, 
-        # dan simpan self.player.
-        pass 
-        
     def set_player(self, player):
         """Set player reference"""
         self.player = player
@@ -263,10 +249,11 @@ class KeyboardRain(Skill):
         """Spawn keyboard projectile"""
         from weapons import KeyboardProjectile
         
-        if hasattr(self, 'player'):
-            # Spawn area: 800x600 box around player
-            offset_x = randint(-400, 400)
-            offset_y = randint(-300, 300)
+        if self.player:
+            # Spawn area: Full screen (camera view)
+            # Menggunakan posisi player sebagai pusat, tapi area sebesar layar
+            offset_x = randint(-WINDOW_WIDTH // 2, WINDOW_WIDTH // 2)
+            offset_y = randint(-WINDOW_HEIGHT // 2, WINDOW_HEIGHT // 2)
             spawn_pos = (self.player.rect.centerx + offset_x, self.player.rect.centery + offset_y)
             
             KeyboardProjectile(spawn_pos, self.__groups, self.damage)

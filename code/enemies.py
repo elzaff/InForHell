@@ -313,29 +313,30 @@ class CirclingEnemy(Enemy):
 class EnemyFactory:
     """Factory Pattern untuk pembuatan musuh"""
     
-    ENEMY_TYPES = {
-        'basic': BasicEnemy,
-        'fast': FastEnemy,
-        'tank': TankEnemy,
-        'zigzag': ZigzagEnemy,
-        'circling': CirclingEnemy
+    ENEMY_MAPPING = {
+        'bat': BasicEnemy,
+        'blob': TankEnemy,
+        'skeleton': FastEnemy
     }
     
     @staticmethod
-    def create_enemy(enemy_type: str, pos: tuple[int, int], frames: list[pygame.Surface], 
+    def create_enemy(enemy_type: str, pos: tuple[int, int], frames_dict: dict, 
                      groups: tuple[pygame.sprite.Group, ...], player: pygame.sprite.Sprite, 
                      collision_sprites: pygame.sprite.Group) -> Enemy:
         """Membuat instance musuh berdasarkan tipe"""
-        enemy_class = EnemyFactory.ENEMY_TYPES.get(enemy_type, BasicEnemy)
+        enemy_class = EnemyFactory.ENEMY_MAPPING.get(enemy_type, BasicEnemy)
+        
+        # Ambil frames yang sesuai dengan tipe musuh
+        # Jika tidak ada, pakai yang pertama tersedia
+        frames = frames_dict.get(enemy_type)
+        if not frames:
+            frames = list(frames_dict.values())[0]
+            
         return enemy_class(pos, frames, groups, player, collision_sprites)
     
     @staticmethod
     def create_random_enemy(pos: tuple[int, int], frames_dict: dict, groups: tuple[pygame.sprite.Group, ...], 
                             player: pygame.sprite.Sprite, collision_sprites: pygame.sprite.Group) -> Enemy:
         """Membuat musuh dengan tipe acak"""
-        enemy_type = random.choice(list(EnemyFactory.ENEMY_TYPES.keys()))
-        # Pastikan key frame ada, jika tidak pakai default atau yang pertama
-        frame_key = enemy_type if enemy_type in frames_dict else list(frames_dict.keys())[0]
-        frames = frames_dict.get(frame_key, list(frames_dict.values())[0])
-        
-        return EnemyFactory.create_enemy(enemy_type, pos, frames, groups, player, collision_sprites)
+        enemy_type = random.choice(list(EnemyFactory.ENEMY_MAPPING.keys()))
+        return EnemyFactory.create_enemy(enemy_type, pos, frames_dict, groups, player, collision_sprites)
