@@ -138,7 +138,7 @@ class SpawnManager:
         
         if valid_positions:
             spawn_pos = choice(valid_positions)
-            enemy_type = choice(['bat', 'blob', 'skeleton'])
+            enemy_type = choice(['books', 'paper', 'redblob','slime','toast'])
             enemy = enemy_factory.create_enemy(
                 enemy_type,
                 spawn_pos, 

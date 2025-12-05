@@ -69,20 +69,45 @@ class Game:
         # Managers
         self.__spawn_manager = SpawnManager(self.__spawn_positions, self.__enemy_frames)
         self.__collision_manager = CollisionManager(self.__impact_sound)
-
+    
     def __load_images(self) -> None:
-        """Memuat semua gambar game"""
         self.__bullet_surf = pygame.image.load(join('images', 'gun', 'bullet.png')).convert_alpha()
 
-        folders = list(walk(join('images', 'enemies')))[0][1]
+        # Path ke folder enemies
+        enemies_path = join('images', 'enemies')
         self.__enemy_frames = {}
+
+        # Cek folder enemies ada atau tidak
+        if not list(walk(enemies_path)):
+            print("Folder images/enemies tidak ditemukan!")
+            return
+        folder_walker = list(walk(enemies_path))
+        if not folder_walker:
+             return
+        
+        folders = folder_walker[0][1]
+
         for folder in folders:
-            for folder_path, _, file_names in walk(join('images', 'enemies', folder)):
-                self.__enemy_frames[folder] = []
-                for file_name in sorted(file_names, key = lambda name: int(name.split('.')[0])):
+            folder_path = join(enemies_path, folder)
+            self.__enemy_frames[folder] = []
+            
+            # Ambil semua file dalam folder spesifik itu
+            for _, __, file_names in walk(folder_path):
+                png_files = [f for f in file_names if f.endswith('.png')]
+        
+                try:
+                    png_files.sort(key=lambda name: int(name.split('.')[0]))
+                except ValueError:
+                    print(f"Warning: Ada nama file aneh di folder '{folder}', pakai sort biasa.")
+                    png_files.sort()
+
+                for file_name in png_files:
                     full_path = join(folder_path, file_name)
-                    surf = pygame.image.load(full_path).convert_alpha()
-                    self.__enemy_frames[folder].append(surf)
+                    try:
+                        surf = pygame.image.load(full_path).convert_alpha()
+                        self.__enemy_frames[folder].append(surf)
+                    except Exception as e:
+                        print(f"Gagal load {file_name}: {e}")
 
     def __auto_shoot(self) -> None:
         """

@@ -314,9 +314,11 @@ class EnemyFactory:
     """Factory Pattern untuk pembuatan musuh"""
     
     ENEMY_MAPPING = {
-        'bat': BasicEnemy,
-        'blob': TankEnemy,
-        'skeleton': FastEnemy
+        'redblob': BasicEnemy,
+        'toast': TankEnemy,
+        'books': TankEnemy,
+        'paper': FastEnemy,
+        'slime': ZigzagEnemy
     }
     
     @staticmethod
@@ -324,13 +326,18 @@ class EnemyFactory:
                      groups: tuple[pygame.sprite.Group, ...], player: pygame.sprite.Sprite, 
                      collision_sprites: pygame.sprite.Group) -> Enemy:
         """Membuat instance musuh berdasarkan tipe"""
+        
+        # Cek apakah tipe musuh ada di mapping, kalau tidak default ke BasicEnemy
         enemy_class = EnemyFactory.ENEMY_MAPPING.get(enemy_type, BasicEnemy)
         
-        # Ambil frames yang sesuai dengan tipe musuh
-        # Jika tidak ada, pakai yang pertama tersedia
+        # Ambil frames yang sesuai dengan tipe musuh 
         frames = frames_dict.get(enemy_type)
         if not frames:
-            frames = list(frames_dict.values())[0]
+            if len(frames_dict) > 0:
+                frames = list(frames_dict.values())[0]
+            else:
+                print(f"!! CRITICAL: Tidak ada asset musuh yang termuat untuk {enemy_type}")
+                return None 
             
         return enemy_class(pos, frames, groups, player, collision_sprites)
     
@@ -338,5 +345,11 @@ class EnemyFactory:
     def create_random_enemy(pos: tuple[int, int], frames_dict: dict, groups: tuple[pygame.sprite.Group, ...], 
                             player: pygame.sprite.Sprite, collision_sprites: pygame.sprite.Group) -> Enemy:
         """Membuat musuh dengan tipe acak"""
-        enemy_type = random.choice(list(EnemyFactory.ENEMY_MAPPING.keys()))
-        return EnemyFactory.create_enemy(enemy_type, pos, frames_dict, groups, player, collision_sprites)
+        # Pilih random key dari frame yang tersedia (bukan dari mapping class)
+        # Ini biar aman kalau ada folder yang dihapus tapi mapping lupa dihapus
+        available_types = list(frames_dict.keys())
+        
+        if available_types:
+            enemy_type = random.choice(available_types)
+            return EnemyFactory.create_enemy(enemy_type, pos, frames_dict, groups, player, collision_sprites)
+        return None
