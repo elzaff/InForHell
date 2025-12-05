@@ -12,7 +12,7 @@ from groups import AllSprites
 from ui import GameUI, GameOverScreen, LevelUpNotification
 from game_managers import GameState, SpawnManager, CollisionManager
 from combat_system import WeaponDefault, KeyboardRain
-
+from pathfinding import Pathfinder
 import pygame
 from os.path import join
 from os import walk
@@ -67,7 +67,11 @@ class Game:
         self.__setup()
         
         # Managers
-        self.__spawn_manager = SpawnManager(self.__spawn_positions, self.__enemy_frames)
+        self.__spawn_manager = SpawnManager(
+            self.__spawn_positions, 
+            self.__enemy_frames, 
+            self.__pathfinder 
+        )
         self.__collision_manager = CollisionManager(self.__impact_sound)
     
     def __load_images(self) -> None:
@@ -146,6 +150,7 @@ class Game:
     def __setup(self) -> None:
         """Setup dunia game dari TMX map"""
         map = load_pygame(join('data', 'maps', 'world.tmx'))
+        self.__pathfinder = Pathfinder(map)
 
         for x, y, image in map.get_layer_by_name('Ground').tiles():
             Sprite((x * TILE_SIZE, y * TILE_SIZE), image, self.__all_sprites)

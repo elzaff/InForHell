@@ -85,9 +85,16 @@ class SpawnManager:
     Methods: spawn_enemy(), update_difficulty(time), should_spawn()
     """
     
-    def __init__(self, spawn_positions: List[Tuple[int, int]], enemy_frames: Dict[str, List[pygame.Surface]]):
+    # Di file game_managers.py
+
+class SpawnManager:
+    def __init__(self, spawn_positions: List[Tuple[int, int]], 
+                 enemy_frames: Dict[str, List[pygame.Surface]], 
+                 pathfinder): 
+                 
         self.__spawn_positions = spawn_positions
         self.__enemy_frames = enemy_frames
+        self.__pathfinder = pathfinder 
         self.__spawn_interval = ENEMY_SPAWN_INTERVAL
         self.__last_spawn_time = pygame.time.get_ticks()
         self.__difficulty_multiplier = 1.0
@@ -120,8 +127,7 @@ class SpawnManager:
             return True
         return False
     
-    def spawn_enemy(self, groups: Tuple[pygame.sprite.Group, ...], player: pygame.sprite.Sprite, 
-                   collision_sprites: pygame.sprite.Group, enemy_factory: Any) -> Optional[Any]:
+    def spawn_enemy(self, groups, player, collision_sprites, enemy_factory):
         """
         Memunculkan musuh acak di posisi acak yang jauh dari player.
         Returns: musuh yang dimunculkan atau None.
@@ -136,7 +142,7 @@ class SpawnManager:
             if distance > ENEMY_SPAWN_DISTANCE:
                 valid_positions.append(pos)
         
-        if valid_positions:
+        if valid_positions and self.__enemy_frames:
             spawn_pos = choice(valid_positions)
             enemy_type = choice(['books', 'paper', 'redblob','slime','toast'])
             enemy = enemy_factory.create_enemy(
@@ -145,8 +151,8 @@ class SpawnManager:
                 self.__enemy_frames,
                 groups,
                 player,
-                collision_sprites
-            )
+                collision_sprites,
+                self.__pathfinder)
             self.__enemies_spawned += 1
             return enemy
         return None
