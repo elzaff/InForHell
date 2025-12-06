@@ -11,16 +11,19 @@ from .components import Button, UpgradeCardUI
 
 class MainMenu:
     """Main Menu dengan tema neraka yang lebih keren"""
-    def __init__(self, display_surface):
+    def __init__(self, display_surface, score_manager=None):
         self.display_surface = display_surface
+        self.score_manager = score_manager
 
         # Load Font
         try:
             self.font_button = pygame.font.Font(None, 40)
             self.font_subtitle = pygame.font.Font(None, 24)
+            self.font_score = pygame.font.Font(None, 36)
         except:
             self.font_button = pygame.font.SysFont(None, 40)
             self.font_subtitle = pygame.font.SysFont(None, 24)
+            self.font_score = pygame.font.SysFont(None, 36)
         
         # Load Logo InForHell
         self.logo = None
@@ -60,25 +63,98 @@ class MainMenu:
             self.btn_exit.draw(self.display_surface)
         
         else:
-            # Leaderboard screen
-            try:
-                title_font = pygame.font.Font(join('data', 'fonts', 'Oxanium-Bold.ttf'), 80)
-            except:
-                title_font = pygame.font.SysFont(None, 80)
-            
-            title_surf = title_font.render("LEADERBOARD", True, (255, 150, 0))
-            title_rect = title_surf.get_frect(center=(WINDOW_WIDTH // 2, 100))
-            self.display_surface.blit(title_surf, title_rect)
-            
-            scores = ["1. PLAYER - 9999", "2. ??? - 0000"]
-            for i, score in enumerate(scores):
-                score_surf = self.font_button.render(score, True, (255, 220, 180))
-                score_rect = score_surf.get_frect(center=(WINDOW_WIDTH // 2, 250 + i * 60))
+            self._draw_leaderboard()
+
+    def _draw_leaderboard(self):
+        """Draw leaderboard screen dengan top 5 + player rank"""
+        # Title
+        try:
+            title_font = pygame.font.Font(join('data', 'fonts', 'Oxanium-Bold.ttf'), 70)
+        except:
+            title_font = pygame.font.SysFont(None, 70)
+        
+        title_surf = title_font.render("LEADERBOARD", True, (255, 150, 0))
+        title_rect = title_surf.get_frect(center=(WINDOW_WIDTH // 2, 80))
+        self.display_surface.blit(title_surf, title_rect)
+        
+        # Get scores from manager
+        if self.score_manager:
+            top_scores = self.score_manager.get_leaderboard(5)
+            last_player = self.score_manager.get_last_player_entry()
+        else:
+            top_scores = []
+            last_player = None
+        
+        # Draw top 5
+        y_start = 160
+        y_spacing = 55
+        
+        # Header
+        header_surf = self.font_subtitle.render("RANK    NAME    SCORE", True, (150, 120, 100))
+        header_rect = header_surf.get_frect(center=(WINDOW_WIDTH // 2, y_start))
+        self.display_surface.blit(header_surf, header_rect)
+        
+        y_offset = y_start + 40
+        
+        if not top_scores:
+            # No scores yet
+            empty_surf = self.font_score.render("No scores yet!", True, (100, 80, 60))
+            empty_rect = empty_surf.get_frect(center=(WINDOW_WIDTH // 2, y_offset + 60))
+            self.display_surface.blit(empty_surf, empty_rect)
+        else:
+            # Draw each score
+            for entry in top_scores:
+                # Color: gold for #1, silver for #2, bronze for #3
+                if entry['rank'] == 1:
+                    color = (255, 215, 0)  # Gold
+                elif entry['rank'] == 2:
+                    color = (192, 192, 192)  # Silver
+                elif entry['rank'] == 3:
+                    color = (205, 127, 50)  # Bronze
+                else:
+                    color = (255, 220, 180)
+                
+                # Highlight if this is the last player
+                is_last_player = (last_player and 
+                                  entry['rank'] == last_player['rank'] and 
+                                  entry['name'] == last_player['name'])
+                if is_last_player:
+                    # Draw highlight background
+                    highlight_rect = pygame.Rect(WINDOW_WIDTH // 2 - 200, y_offset - 15, 400, 45)
+                    pygame.draw.rect(self.display_surface, (80, 40, 20), highlight_rect)
+                    pygame.draw.rect(self.display_surface, (255, 150, 0), highlight_rect, 2)
+                
+                score_text = f"{entry['rank']:2d}.  {entry['name']}  -  {entry['score']:,}"
+                score_surf = self.font_score.render(score_text, True, color)
+                score_rect = score_surf.get_frect(center=(WINDOW_WIDTH // 2, y_offset))
                 self.display_surface.blit(score_surf, score_rect)
                 
-            back_surf = self.font_button.render("[ ESC to Back ]", True, (150, 100, 80))
-            back_rect = back_surf.get_frect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT - 100))
-            self.display_surface.blit(back_surf, back_rect)
+                y_offset += y_spacing
+            
+            # Draw player rank if outside top 5
+            if last_player and last_player['rank'] > 5:
+                # Draw separator
+                y_offset += 10
+                dots_surf = self.font_score.render(". . .", True, (100, 80, 60))
+                dots_rect = dots_surf.get_frect(center=(WINDOW_WIDTH // 2, y_offset))
+                self.display_surface.blit(dots_surf, dots_rect)
+                
+                y_offset += y_spacing
+                
+                # Draw player's entry with highlight
+                highlight_rect = pygame.Rect(WINDOW_WIDTH // 2 - 200, y_offset - 15, 400, 45)
+                pygame.draw.rect(self.display_surface, (80, 40, 20), highlight_rect)
+                pygame.draw.rect(self.display_surface, (255, 150, 0), highlight_rect, 2)
+                
+                player_text = f"{last_player['rank']:2d}.  {last_player['name']}  -  {last_player['score']:,}"
+                player_surf = self.font_score.render(player_text, True, (255, 200, 100))
+                player_rect = player_surf.get_frect(center=(WINDOW_WIDTH // 2, y_offset))
+                self.display_surface.blit(player_surf, player_rect)
+        
+        # Back instruction
+        back_surf = self.font_button.render("[ ESC to Back ]", True, (150, 100, 80))
+        back_rect = back_surf.get_frect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT - 60))
+        self.display_surface.blit(back_surf, back_rect)
 
     def update(self, event_list):
         mouse_pos = pygame.mouse.get_pos()
@@ -96,6 +172,180 @@ class MainMenu:
             for event in event_list:
                 if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                     self.show_leaderboard = False
+        return None
+
+
+class NameInputScreen:
+    """Screen untuk input 3-letter name setelah game over"""
+    
+    def __init__(self, display_surface: pygame.Surface):
+        self.__display_surface = display_surface
+        self.__active = False
+        self.__letters = ['A', 'A', 'A']
+        self.__current_index = 0
+        self.__final_score = 0
+        self.__final_stats = {}
+        
+        # Fonts
+        self.__font_title = pygame.font.Font(None, 64)
+        self.__font_letter = pygame.font.Font(None, 100)
+        self.__font_info = pygame.font.Font(None, 36)
+        self.__font_hint = pygame.font.Font(None, 28)
+        
+        # Colors
+        self.__selected_color = (255, 200, 50)  # Gold
+        self.__unselected_color = (150, 130, 110)
+        self.__bg_color = (30, 15, 15)
+    
+    def show(self, score: int, stats: dict) -> None:
+        """Tampilkan input screen"""
+        self.__active = True
+        self.__letters = ['A', 'A', 'A']
+        self.__current_index = 0
+        self.__final_score = score
+        self.__final_stats = stats
+    
+    def hide(self) -> None:
+        """Sembunyikan input screen"""
+        self.__active = False
+    
+    @property
+    def is_active(self) -> bool:
+        return self.__active
+    
+    def get_name(self) -> str:
+        """Get 3-letter name"""
+        return ''.join(self.__letters)
+    
+    def get_score(self) -> int:
+        """Get final score"""
+        return self.__final_score
+    
+    def draw(self) -> None:
+        """Draw name input screen"""
+        if not self.__active:
+            return
+        
+        # Dark overlay
+        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
+        overlay.set_alpha(220)
+        overlay.fill(self.__bg_color)
+        self.__display_surface.blit(overlay, (0, 0))
+        
+        # Title
+        title_text = self.__font_title.render("ENTER YOUR NAME", False, (255, 150, 0))
+        title_rect = title_text.get_frect(center=(WINDOW_WIDTH // 2, 120))
+        self.__display_surface.blit(title_text, title_rect)
+        
+        # Score display
+        score_text = self.__font_info.render(f"Final Score: {self.__final_score:,}", False, WHITE)
+        score_rect = score_text.get_frect(center=(WINDOW_WIDTH // 2, 180))
+        self.__display_surface.blit(score_text, score_rect)
+        
+        # Stats
+        if self.__final_stats:
+            stats_text = f"Level {self.__final_stats.get('level', 1)} | {self.__final_stats.get('kills', 0)} Kills | {self.__final_stats.get('time', '0:00')}"
+            stats_surf = self.__font_hint.render(stats_text, False, (150, 130, 110))
+            stats_rect = stats_surf.get_frect(center=(WINDOW_WIDTH // 2, 220))
+            self.__display_surface.blit(stats_surf, stats_rect)
+        
+        # Letter boxes
+        box_size = 100
+        box_spacing = 30
+        total_width = box_size * 3 + box_spacing * 2
+        start_x = WINDOW_WIDTH // 2 - total_width // 2
+        box_y = WINDOW_HEIGHT // 2 - 50
+        
+        for i, letter in enumerate(self.__letters):
+            box_x = start_x + i * (box_size + box_spacing)
+            box_rect = pygame.Rect(box_x, box_y, box_size, box_size)
+            
+            # Box color based on selection
+            if i == self.__current_index:
+                box_color = self.__selected_color
+                border_width = 4
+            else:
+                box_color = self.__unselected_color
+                border_width = 2
+            
+            # Draw box
+            pygame.draw.rect(self.__display_surface, (40, 20, 20), box_rect)
+            pygame.draw.rect(self.__display_surface, box_color, box_rect, border_width)
+            
+            # Draw letter
+            letter_surf = self.__font_letter.render(letter, False, box_color)
+            letter_rect = letter_surf.get_frect(center=box_rect.center)
+            self.__display_surface.blit(letter_surf, letter_rect)
+            
+            # Draw arrows for selected box
+            if i == self.__current_index:
+                arrow_color = self.__selected_color
+                # Up arrow
+                up_points = [
+                    (box_rect.centerx, box_rect.top - 20),
+                    (box_rect.centerx - 15, box_rect.top - 5),
+                    (box_rect.centerx + 15, box_rect.top - 5)
+                ]
+                pygame.draw.polygon(self.__display_surface, arrow_color, up_points)
+                
+                # Down arrow
+                down_points = [
+                    (box_rect.centerx, box_rect.bottom + 20),
+                    (box_rect.centerx - 15, box_rect.bottom + 5),
+                    (box_rect.centerx + 15, box_rect.bottom + 5)
+                ]
+                pygame.draw.polygon(self.__display_surface, arrow_color, down_points)
+        
+        # Instructions
+        hint1 = self.__font_hint.render("↑↓ Change Letter  |  ←→ Move  |  ENTER Confirm", False, (120, 100, 80))
+        hint1_rect = hint1.get_frect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT - 100))
+        self.__display_surface.blit(hint1, hint1_rect)
+    
+    def update(self, event_list) -> Optional[str]:
+        """
+        Handle input untuk name entry.
+        Returns: 'confirm' jika enter ditekan, None otherwise
+        """
+        if not self.__active:
+            return None
+        
+        for event in event_list:
+            if event.type == pygame.KEYDOWN:
+                # Move selection
+                if event.key == pygame.K_LEFT:
+                    self.__current_index = max(0, self.__current_index - 1)
+                elif event.key == pygame.K_RIGHT:
+                    self.__current_index = min(2, self.__current_index + 1)
+                
+                # Change letter
+                elif event.key == pygame.K_UP:
+                    current_letter = self.__letters[self.__current_index]
+                    # A-Z cycle
+                    if current_letter == 'Z':
+                        self.__letters[self.__current_index] = 'A'
+                    else:
+                        self.__letters[self.__current_index] = chr(ord(current_letter) + 1)
+                
+                elif event.key == pygame.K_DOWN:
+                    current_letter = self.__letters[self.__current_index]
+                    # Z-A cycle
+                    if current_letter == 'A':
+                        self.__letters[self.__current_index] = 'Z'
+                    else:
+                        self.__letters[self.__current_index] = chr(ord(current_letter) - 1)
+                
+                # Direct letter input
+                elif event.key >= pygame.K_a and event.key <= pygame.K_z:
+                    letter = chr(event.key).upper()
+                    self.__letters[self.__current_index] = letter
+                    # Auto-advance
+                    if self.__current_index < 2:
+                        self.__current_index += 1
+                
+                # Confirm
+                elif event.key == pygame.K_RETURN:
+                    return 'confirm'
+        
         return None
 
 

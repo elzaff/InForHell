@@ -20,8 +20,9 @@ from src.combat.mechanics import WeaponDefault
 from src.systems.spawn_manager import SpawnManager
 from src.systems.collision_manager import CollisionManager
 from src.systems.upgrade_manager import UpgradeDatabase, GameState
+from src.systems.score_manager import ScoreManager
 from src.ui.hud import GameUI
-from src.ui.menus import MainMenu, PauseMenu, GameOverScreen, LevelUpNotification, LevelUpSelectionMenu
+from src.ui.menus import MainMenu, PauseMenu, GameOverScreen, LevelUpNotification, LevelUpSelectionMenu, NameInputScreen
 
 
 class Game:
@@ -36,9 +37,14 @@ class Game:
         pygame.display.set_caption('InForHell - Vampire Survivor Clone')
         self.__clock = pygame.time.Clock()
         
+        # --- SCORE SYSTEM ---
+        self.__score_manager = ScoreManager()
+        
         # --- MENU SYSTEM ---
         self.__in_menu = True  # Game mulai di Menu
-        self.__main_menu = MainMenu(self.__display_surface)
+        self.__main_menu = MainMenu(self.__display_surface, self.__score_manager)
+        self.__name_input_screen = NameInputScreen(self.__display_surface)
+        self.__awaiting_name_input = False
         
         # Load aset dan komponen game tapi belum dimainkan
         self.__setup_game_components()
@@ -176,6 +182,20 @@ class Game:
                 self.__game_state.resume()
             return
 
+        # --- INPUT NAME INPUT (setelah game over) ---
+        if self.__name_input_screen.is_active:
+            action = self.__name_input_screen.update(event_list)
+            if action == 'confirm':
+                # Save score
+                player_name = self.__name_input_screen.get_name()
+                player_score = self.__name_input_screen.get_score()
+                self.__score_manager.save_score(player_name, player_score)
+                self.__name_input_screen.hide()
+                # Go to main menu
+                self.__in_menu = True
+                if self.__music: self.__music.stop()
+            return
+
         # --- INPUT PAUSE MENU ---
         if not self.__in_menu and self.__game_state.is_paused:
             action = self.__pause_menu.update(event_list)
@@ -193,14 +213,17 @@ class Game:
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
                         if self.__game_state.is_game_over:
-                            self.__in_menu = True
-                            if self.__music: self.__music.stop()
+                            # Langsung ke name input
+                            self.__trigger_name_input()
                         else:
                             self.__game_state.pause()
                     
                     if self.__game_state.is_game_over:
                         if event.key == pygame.K_r:
                             self.__restart_game()
+                        elif event.key == pygame.K_RETURN:
+                            # ENTER juga trigger name input
+                            self.__trigger_name_input()
             return
 
         # --- INPUT MAIN MENU ---
@@ -214,9 +237,23 @@ class Game:
 
     def __restart_game(self) -> None:
         """Restart game total"""
+        self.__score_manager.clear_last_player()  # Clear last player tracking
+        # Stop music dulu sebelum restart
+        if self.__music:
+            self.__music.stop()
         self.__setup_game_components()
         if self.__music: 
             self.__music.play(loops=-1)
+    
+    def __trigger_name_input(self) -> None:
+        """Trigger name input screen setelah game over"""
+        final_stats = {
+            'score': self.__game_state.score,
+            'level': self.__player.stats.level,
+            'kills': self.__player.stats.kills,
+            'time': f"{int(self.__game_state.elapsed_time // 60)}:{int(self.__game_state.elapsed_time % 60):02d}"
+        }
+        self.__name_input_screen.show(self.__game_state.score, final_stats)
 
     def __update_game(self, dt: float) -> None:
         """Update game logic"""
@@ -320,6 +357,8 @@ class Game:
             
             if self.__level_up_menu.is_active:
                 self.__level_up_menu.draw()
+            elif self.__name_input_screen.is_active:
+                self.__name_input_screen.draw()
             elif self.__game_state.is_paused:
                 self.__pause_menu.draw()
             elif self.__game_state.is_game_over:
