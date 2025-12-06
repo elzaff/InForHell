@@ -1,22 +1,27 @@
 """
-MAIN GAME - InForHell
-Vampire Survivor-inspired game dengan arsitektur OOP.
+CORE GAME MODULE
+Class Game utama yang mengatur game loop.
 """
-from settings import *
-from player import Player
-from sprites import Sprite, CollisionSprite
-from weapons import Bullet
-from enemies import EnemyFactory
-from pytmx.util_pygame import load_pygame
-from groups import AllSprites
-# Update import ui untuk MainMenu dan PauseMenu
-from ui import GameUI, GameOverScreen, LevelUpNotification, MainMenu, PauseMenu 
-from game_managers import GameState, SpawnManager, CollisionManager
-from combat_system import WeaponDefault, KeyboardRain
-from pathfinding import Pathfinder
 import pygame
 from os.path import join
-from os import walk
+from pytmx.util_pygame import load_pygame
+
+from settings import (
+    WINDOW_WIDTH, WINDOW_HEIGHT, FPS, TILE_SIZE, GUN_COOLDOWN
+)
+from src.core.groups import AllSprites
+from src.core.pathfinding import Pathfinder
+from src.entities.player import Player
+from src.entities.sprites import Sprite, CollisionSprite
+from src.entities.enemies import EnemyFactory
+from src.combat.weapons import Bullet
+from src.combat.skills import KeyboardRain
+from src.combat.mechanics import WeaponDefault
+from src.systems.spawn_manager import SpawnManager
+from src.systems.collision_manager import CollisionManager
+from src.systems.upgrade_manager import UpgradeDatabase, GameState
+from src.ui.hud import GameUI
+from src.ui.menus import MainMenu, PauseMenu, GameOverScreen, LevelUpNotification, LevelUpSelectionMenu
 
 
 class Game:
@@ -57,6 +62,10 @@ class Game:
         self.__game_over_screen = GameOverScreen(self.__display_surface)
         self.__level_up_notification = LevelUpNotification()
         self.__pause_menu = PauseMenu(self.__display_surface)
+        self.__level_up_menu = LevelUpSelectionMenu(self.__display_surface)
+        
+        # Upgrade System
+        self.__upgrade_db = UpgradeDatabase()
         
         # Audio 
         try:
@@ -74,7 +83,7 @@ class Game:
         self.__load_images()
         self.__setup()
         
-        # Managers (Jangan lupa kirim pathfinder ke SpawnManager)
+        # Managers
         self.__spawn_manager = SpawnManager(
             self.__spawn_positions, 
             self.__enemy_frames, 
@@ -83,7 +92,9 @@ class Game:
         self.__collision_manager = CollisionManager(self.__impact_sound)
 
     def __load_images(self) -> None:
-        """Memuat gambar dengan aman (Anti-Mac Crash)"""
+        """Memuat gambar dengan aman"""
+        from os import walk
+        
         self.__bullet_surf = pygame.image.load(join('images', 'gun', 'bullet.png')).convert_alpha()
 
         enemies_path = join('images', 'enemies')
@@ -147,8 +158,8 @@ class Game:
                 self.__spawn_positions.append((obj.x, obj.y))
 
     def __handle_events(self) -> None:
-        """Handle input: Membedakan saat di Menu vs Gameplay vs Pause"""
-        event_list = pygame.event.get() # Ambil event sekali
+        """Handle input: Membedakan saat di Menu vs Gameplay vs Pause vs Level Up"""
+        event_list = pygame.event.get()
         
         # Handle QUIT event
         for event in event_list:
@@ -156,25 +167,35 @@ class Game:
                 self.__game_state.stop_game()
                 return
 
-        # --- INPUT PAUSE MENU (prioritas tertinggi jika paused) ---
+        # --- INPUT LEVEL UP SELECTION (prioritas tertinggi) ---
+        if self.__level_up_menu.is_active:
+            selected_upgrade_id = self.__level_up_menu.update(event_list)
+            if selected_upgrade_id:
+                self.__upgrade_db.apply_upgrade(selected_upgrade_id, self.__player)
+                self.__level_up_menu.hide()
+                self.__game_state.resume()
+            return
+
+        # --- INPUT PAUSE MENU ---
         if not self.__in_menu and self.__game_state.is_paused:
             action = self.__pause_menu.update(event_list)
             if action == "continue":
                 self.__game_state.resume()
             elif action == "main_menu":
-                # Kembali ke main menu dan reset game state
-                self.__game_state.resume()  # Resume dulu untuk clear pause state
+                self.__game_state.resume()
                 self.__in_menu = True
                 if self.__music: self.__music.stop()
-            return  # Jangan proses input lain saat paused
+            return
 
         # --- INPUT GAMEPLAY ---
         if not self.__in_menu and not self.__game_state.is_paused:
             for event in event_list:
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
-                        # Pause game (jangan balik ke menu, tapi pause)
-                        if not self.__game_state.is_game_over:
+                        if self.__game_state.is_game_over:
+                            self.__in_menu = True
+                            if self.__music: self.__music.stop()
+                        else:
                             self.__game_state.pause()
                     
                     if self.__game_state.is_game_over:
@@ -199,8 +220,7 @@ class Game:
 
     def __update_game(self, dt: float) -> None:
         """Update game logic"""
-        # Kalau di menu atau paused, stop update game logic
-        if self.__in_menu or self.__game_state.is_paused:
+        if self.__in_menu or self.__game_state.is_paused or self.__level_up_menu.is_active:
             return
 
         if not self.__game_state.is_game_over:
@@ -208,6 +228,7 @@ class Game:
             self.__auto_shoot()
             
             if self.__player.active_skill:
+                self.__player.active_skill.set_cooldown_modifier(self.__player.stat_modifiers['cooldown'])
                 self.__player.active_skill.update(dt)
             
             self.__all_sprites.update(dt)
@@ -233,7 +254,6 @@ class Game:
             
             self.__level_up_notification.update()
     
-    # Fungsi helper yang hilang di kode kamu
     def __gun_timer(self) -> None:
         if not self.__can_shoot:
             current_time = pygame.time.get_ticks()
@@ -246,13 +266,24 @@ class Game:
             if self.__shoot_sound: self.__shoot_sound.play()
             if self.__player.weapon:
                 shoot_info = self.__player.weapon.attack()
-                Bullet(
-                    surf=self.__bullet_surf,
-                    pos=shoot_info['position'],
-                    direction=shoot_info['direction'],
-                    groups=(self.__all_sprites, self.__bullet_sprites),
-                    damage=shoot_info['damage']
-                )
+                
+                if isinstance(shoot_info, dict) and shoot_info.get('multi'):
+                    for bullet_data in shoot_info['bullets']:
+                        Bullet(
+                            surf=self.__bullet_surf,
+                            pos=bullet_data['position'],
+                            direction=bullet_data['direction'],
+                            groups=(self.__all_sprites, self.__bullet_sprites),
+                            damage=bullet_data['damage']
+                        )
+                else:
+                    Bullet(
+                        surf=self.__bullet_surf,
+                        pos=shoot_info['position'],
+                        direction=shoot_info['direction'],
+                        groups=(self.__all_sprites, self.__bullet_sprites),
+                        damage=shoot_info['damage']
+                    )
             self.__can_shoot = False
             self.__shoot_time = pygame.time.get_ticks()
 
@@ -261,9 +292,14 @@ class Game:
             self.__bullet_sprites, self.__enemy_sprites, self.__player
         )
         if result['level_up']:
-            self.__level_up_notification.trigger(self.__player.stats.level)
-            if self.__player.weapon: self.__player.weapon.level_up()
-            if self.__player.active_skill: self.__player.active_skill.level_up()
+            self.__trigger_level_up()
+    
+    def __trigger_level_up(self) -> None:
+        """Trigger level up selection menu"""
+        self.__game_state.pause()
+        upgrade_cards = self.__upgrade_db.get_available_upgrades(count=3)
+        self.__level_up_menu.show(upgrade_cards)
+        self.__level_up_notification.trigger(self.__player.stats.level)
 
     def __player_collision(self) -> None:
         took_damage = self.__collision_manager.check_player_enemy(self.__player, self.__enemy_sprites)
@@ -274,19 +310,17 @@ class Game:
         """Draw everything"""
         self.__display_surface.fill('black')
         
-        # --- LOGIKA DRAW: Menu vs Gameplay vs Pause ---
         if self.__in_menu:
             self.__main_menu.draw()
         else:
-            # Selalu gambar gameplay (bahkan saat pause, agar situasi terlihat)
             self.__all_sprites.draw(self.__player.rect.center)
             self.__ui.draw()
             self.__ui.draw_skill_icon(self.__player.active_skill)
             self.__level_up_notification.draw(self.__display_surface)
             
-            # Overlay untuk state khusus
-            if self.__game_state.is_paused:
-                # Gambar pause menu dengan overlay
+            if self.__level_up_menu.is_active:
+                self.__level_up_menu.draw()
+            elif self.__game_state.is_paused:
                 self.__pause_menu.draw()
             elif self.__game_state.is_game_over:
                 final_stats = {
@@ -307,7 +341,3 @@ class Game:
             self.__update_game(dt)
             self.__draw_game()
         pygame.quit()
-
-if __name__ == '__main__':
-    game = Game()
-    game.run()

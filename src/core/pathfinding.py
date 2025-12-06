@@ -3,8 +3,9 @@ PATHFINDING MODULE
 Menggunakan algoritma BFS (Breadth-First Search) untuk mencari jalan.
 """
 import pygame
-from settings import *
+from settings import TILE_SIZE
 from collections import deque
+
 
 class Pathfinder:
     def __init__(self, tmx_map):

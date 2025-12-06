@@ -2,7 +2,8 @@
 GROUPS MODULE
 Custom sprite group untuk rendering dengan camera offset
 """
-from settings import * 
+import pygame
+from settings import WINDOW_WIDTH, WINDOW_HEIGHT
 
 
 class AllSprites(pygame.sprite.Group):

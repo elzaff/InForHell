@@ -2,12 +2,11 @@
 ENEMIES MODULE
 Updated: Added Separation Logic (Swarm AI)
 """
-from settings import *
-from sprites import CollisionSprite
 import pygame
 from abc import ABC, abstractmethod
 import random
 from math import sin
+
 
 # ==================== BASE ENEMY CLASS ====================
 
@@ -69,7 +68,7 @@ class Enemy(pygame.sprite.Sprite, ABC):
         self._frame_index += self._animation_speed * dt
         self.image = self._frames[int(self._frame_index) % len(self._frames)]
     
-    # EPARATION (Biar gak numpuk & stuck) 
+    # SEPARATION (Biar gak numpuk & stuck) 
     def _get_separation_vector(self) -> pygame.Vector2:
         separation = pygame.Vector2()
         # Cari musuh lain di sekitar (radius 50 pixel)
@@ -146,6 +145,7 @@ class Enemy(pygame.sprite.Sprite, ABC):
         else:
             self._death_timer()
 
+
 class BasicEnemy(Enemy):
     def __init__(self, pos, frames, groups, player, collision_sprites, enemy_sprites):
         super().__init__(pos, frames, groups, player, collision_sprites, enemy_sprites, 
@@ -159,6 +159,7 @@ class BasicEnemy(Enemy):
         else:
             self._direction = pygame.Vector2()
 
+
 class FastEnemy(Enemy):
     def __init__(self, pos, frames, groups, player, collision_sprites, enemy_sprites):
         super().__init__(pos, frames, groups, player, collision_sprites, enemy_sprites,
@@ -171,6 +172,7 @@ class FastEnemy(Enemy):
             self._direction = (player_pos - enemy_pos).normalize()
         else:
             self._direction = pygame.Vector2()
+
 
 class TankEnemy(Enemy):
     def __init__(self, pos, frames, groups, player, collision_sprites, enemy_sprites):
@@ -197,6 +199,7 @@ class TankEnemy(Enemy):
         
         self._direction = self.cached_direction
 
+
 class ZigzagEnemy(Enemy):
     def __init__(self, pos, frames, groups, player, collision_sprites, enemy_sprites):
         super().__init__(pos, frames, groups, player, collision_sprites, enemy_sprites,
@@ -221,6 +224,7 @@ class ZigzagEnemy(Enemy):
         else:
             self._direction = base
 
+
 class CirclingEnemy(Enemy):
     def __init__(self, pos, frames, groups, player, collision_sprites, enemy_sprites):
         super().__init__(pos, frames, groups, player, collision_sprites, enemy_sprites,
@@ -232,7 +236,7 @@ class CirclingEnemy(Enemy):
         pass 
 
 
-# ==================== FACTORY UPDATE ====================
+# ==================== FACTORY ====================
 
 class EnemyFactory:
     ENEMY_MAPPING = {

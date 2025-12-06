@@ -2,10 +2,14 @@
 PLAYER MODULE
 Implementasi Player class dengan PlayerStats untuk encapsulation
 """
-from settings import *
+import pygame
 from os.path import join
 from os import walk
-import pygame
+from settings import (
+    PLAYER_MAX_HEALTH, PLAYER_BASE_DAMAGE, PLAYER_SPEED,
+    EXP_BASE, EXP_MULTIPLIER, HEALTH_PER_LEVEL
+)
+
 
 class PlayerStats:
     """Class untuk mengelola statistik player dengan encapsulation"""
@@ -101,6 +105,13 @@ class PlayerStats:
         self.__max_health += amount
         self.__current_health += amount  # Heal sebesar kenaikan
     
+    def decrease_max_health(self, amount: int):
+        """Kurangi max HP (untuk risk/reward upgrades seperti SKS)"""
+        self.__max_health = max(10, self.__max_health - amount)  # Minimum 10 HP
+        # Adjust current HP if over new max
+        if self.__current_health > self.__max_health:
+            self.__current_health = self.__max_health
+    
     def increase_damage(self, amount: int):
         """Tingkatkan base damage"""
         self.__base_damage += amount
@@ -137,6 +148,9 @@ class Player(pygame.sprite.Sprite):
             'max_health': 1.0
         }
         
+        # Multi-shot System
+        self.multi_shot_count = 1  # Default single shot
+        
         # Graphics
         self.load_images()
         self.state, self.frame_index = 'down', 0
@@ -157,9 +171,8 @@ class Player(pygame.sprite.Sprite):
         self.__dash_duration = 200
         self.__dash_speed = 0
         
-        self.__last_regen = 0
-        self.__regen_interval = 1000
-        self.__regen_rate = 1
+        # Lifesteal System
+        self.lifesteal_chance = 0.0  # 0.0 to 1.0 (Plagiat Tugas)
 
     @property
     def stats(self):
@@ -207,10 +220,6 @@ class Player(pygame.sprite.Sprite):
     def heal(self, amount: int):
         """Heal player"""
         self.__stats.heal(amount)
-        
-    def increase_regen_rate(self, amount: int):
-        """Increase HP regeneration rate"""
-        self.__regen_rate += amount
     
     def gain_exp(self, amount: int):
         """Dapat EXP dari kill"""
@@ -278,13 +287,6 @@ class Player(pygame.sprite.Sprite):
         if self.__is_invulnerable:
             if current_time - self.__invulnerable_time >= self.__invulnerable_duration:
                 self.__is_invulnerable = False
-    
-    def update_passive_effects(self):
-        """Update passive effects seperti HP regen"""
-        current_time = pygame.time.get_ticks()
-        if current_time - self.__last_regen >= self.__regen_interval:
-            self.heal(self.__regen_rate)
-            self.__last_regen = current_time
 
     def update(self, dt):
         if self.__stats.is_alive:
@@ -292,4 +294,3 @@ class Player(pygame.sprite.Sprite):
             self.move(dt)
             self.animate(dt)
             self.update_timers()
-            self.update_passive_effects()

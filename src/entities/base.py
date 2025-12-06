@@ -3,7 +3,6 @@ LAYER 1: Base Classes - GameEntity & Actor
 Implementasi sesuai class diagram dengan encapsulation penuh
 """
 from abc import ABC, abstractmethod
-from settings import *
 import pygame
 
 

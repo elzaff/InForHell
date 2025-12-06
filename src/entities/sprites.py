@@ -3,8 +3,8 @@ SPRITES MODULE
 Implementasi sprite dasar untuk objek game static.
 Objek dinamis (Enemy, Weapon) dipindahkan ke modul terpisah.
 """
-from settings import * 
 import pygame
+
 
 # ==================== BASIC SPRITES ====================
 
@@ -17,6 +17,7 @@ class Sprite(pygame.sprite.Sprite):
         self.image = surf
         self.rect = self.image.get_frect(topleft = pos)
         self.ground = True
+
 
 class CollisionSprite(pygame.sprite.Sprite):
     """

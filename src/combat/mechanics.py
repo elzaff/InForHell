@@ -1,11 +1,12 @@
 """
-LAYER 3: Combat System - Upgrade, AttackMechanism, WeaponDefault, Skill, PassiveItem
-Implementasi sesuai class diagram
+COMBAT MECHANICS MODULE
+Upgrade, AttackMechanism, WeaponDefault, Skill, PassiveItem base classes.
 """
-from abc import ABC, abstractmethod
-from settings import *
 import pygame
-from random import randint, choice
+import math
+from abc import ABC, abstractmethod
+from settings import GUN_COOLDOWN, PLAYER_BASE_DAMAGE, WINDOW_WIDTH, WINDOW_HEIGHT
+
 
 # ==================== UPGRADE BASE CLASS ====================
 
@@ -66,13 +67,15 @@ class AttackMechanism(Upgrade, ABC):
     
     def __init__(self, name: str, description: str, cooldown: float, damage: float, max_level: int = 5):
         super().__init__(name, description, max_level)
-        self.__cooldown = cooldown
+        self.__base_cooldown = cooldown
         self.__timer = 0
         self.__damage = damage
+        self.__cooldown_modifier = 1.0  # Will be set from player stat_modifiers
     
     @property
     def cooldown(self):
-        return self.__cooldown
+        """Get actual cooldown with modifier applied"""
+        return self.__base_cooldown * self.__cooldown_modifier
     
     @property
     def damage(self):
@@ -81,12 +84,17 @@ class AttackMechanism(Upgrade, ABC):
     @property
     def cooldown_progress(self) -> float:
         """Return progress 0.0 to 1.0"""
-        if self.__cooldown == 0: return 1.0
-        return min(1.0, self.__timer / self.__cooldown)
+        actual_cooldown = self.cooldown
+        if actual_cooldown == 0: return 1.0
+        return min(1.0, self.__timer / actual_cooldown)
     
     def can_attack(self) -> bool:
         """Check if attack is ready (cooldown elapsed)"""
-        return self.__timer >= self.__cooldown
+        return self.__timer >= self.cooldown
+    
+    def set_cooldown_modifier(self, modifier: float):
+        """Set cooldown modifier from player stat_modifiers"""
+        self.__cooldown_modifier = modifier
     
     def update(self, dt: float):
         """Update timer"""
@@ -101,8 +109,8 @@ class AttackMechanism(Upgrade, ABC):
         self.__timer = 0
         
     def _modify_cooldown(self, amount: float):
-        """Protected method untuk modify cooldown"""
-        self.__cooldown = max(50, self.__cooldown + amount)  # Min 50ms cooldown
+        """Protected method untuk modify base cooldown"""
+        self.__base_cooldown = max(50, self.__base_cooldown + amount)  # Min 50ms cooldown
     
     def _modify_damage(self, amount: float):
         """Protected method untuk modify damage"""
@@ -141,21 +149,61 @@ class WeaponDefault(AttackMechanism):
     def attack(self) -> dict:
         """
         Menembakkan peluru.
-        Returns: Dictionary berisi info untuk spawn bullet di main loop.
+        Returns: Dictionary berisi info untuk spawn bullet(s) di main loop.
+        Supports multi-shot jika player punya Broadcasting Protocol.
         """
         # Hitung arah ke mouse
         mouse_pos = pygame.Vector2(pygame.mouse.get_pos())
         player_pos = pygame.Vector2(WINDOW_WIDTH / 2, WINDOW_HEIGHT / 2)
-        direction = pygame.Vector2(1, 0)
+        base_direction = pygame.Vector2(1, 0)
         
         if (mouse_pos - player_pos).length() > 0:
-            direction = (mouse_pos - player_pos).normalize()
+            base_direction = (mouse_pos - player_pos).normalize()
+        
+        # Get multi-shot count
+        multi_shot = getattr(self.__player, 'multi_shot_count', 1)
+        
+        # Single shot (default behavior)
+        if multi_shot <= 1:
+            return {
+                'damage': self.damage,
+                'position': self.__player.rect.center,
+                'direction': base_direction
+            }
+        
+        # Multi-shot: Return list of directions untuk spread pattern
+        spread_angle = 30  # Total spread dalam degrees (15 derajat ke kiri, 15 ke kanan)
+        bullets = []
+        
+        # Calculate spread untuk setiap bullet
+        if multi_shot == 2:
+            angles = [-spread_angle/4, spread_angle/4]
+        elif multi_shot == 3:
+            angles = [-spread_angle/2, 0, spread_angle/2]
+        else:
+            # Untuk 4+ bullets, spread evenly
+            step = spread_angle / (multi_shot - 1)
+            angles = [(-spread_angle/2) + (i * step) for i in range(multi_shot)]
+        
+        # Generate bullet data untuk setiap angle
+        for angle_offset in angles:
+            # Rotate base direction by angle_offset
+            radians = math.radians(angle_offset)
+            cos_a = math.cos(radians)
+            sin_a = math.sin(radians)
             
-        return {
-            'damage': self.damage,
-            'position': self.__player.rect.center,
-            'direction': direction
-        }
+            new_dir = pygame.Vector2(
+                base_direction.x * cos_a - base_direction.y * sin_a,
+                base_direction.x * sin_a + base_direction.y * cos_a
+            )
+            
+            bullets.append({
+                'damage': self.damage,
+                'position': self.__player.rect.center,
+                'direction': new_dir
+            })
+        
+        return {'multi': True, 'bullets': bullets}
     
     def _on_level_up(self) -> None:
         """Meningkatkan damage dan mengurangi cooldown saat level up"""
@@ -210,53 +258,6 @@ class Skill(AttackMechanism):
         self._modify_damage(10)  # +10 damage per level
         if self.level % 2 == 0:  # Every 2 levels
             self.__projectile_count += 1
-
-
-# Concrete Skill Implementations
-class KeyboardRain(Skill):
-    """
-    Skill: Keyboard Rain
-    Menjatuhkan objek 'keyboard' secara acak di layar.
-    """
-    
-    def __init__(self, groups):
-        super().__init__(
-            name="Keyboard Rain",
-            description="Hujan keyboard yang melukai musuh",
-            cooldown=10000, # 10 detik cooldown
-            damage=100
-        )
-        self.__groups = groups
-        self.__spawn_timer = 0
-        self.__spawn_interval = 100 # Spawn setiap 100ms saat aktif
-        self.player = None
-        
-    def update(self, dt):
-        super().update(dt)
-        current_time = pygame.time.get_ticks()
-        self.update_active(current_time)
-        
-        if self.is_active:
-            if current_time - self.__spawn_timer >= self.__spawn_interval:
-                self.attack()
-                self.__spawn_timer = current_time
-                
-    def set_player(self, player):
-        """Set player reference"""
-        self.player = player
-        
-    def attack(self):
-        """Spawn keyboard projectile"""
-        from weapons import KeyboardProjectile
-        
-        if self.player:
-            # Spawn area: Full screen (camera view)
-            # Menggunakan posisi player sebagai pusat, tapi area sebesar layar
-            offset_x = randint(-WINDOW_WIDTH // 2, WINDOW_WIDTH // 2)
-            offset_y = randint(-WINDOW_HEIGHT // 2, WINDOW_HEIGHT // 2)
-            spawn_pos = (self.player.rect.centerx + offset_x, self.player.rect.centery + offset_y)
-            
-            KeyboardProjectile(spawn_pos, self.__groups, self.damage)
 
 
 # ==================== PASSIVE ITEM ====================
@@ -369,4 +370,5 @@ class HealthRegenPassive(PassiveItem):
     
     def apply_stat(self, player):
         """Apply HP regeneration"""
-        player.increase_regen_rate(self.value)
+        if hasattr(player, 'increase_regen_rate'):
+            player.increase_regen_rate(self.value)

@@ -1,8 +1,8 @@
 """
-LAYER 4: Support Systems - Inventory
-Implementasi sesuai class diagram
+INVENTORY MANAGER MODULE
+Sistem inventory untuk skills dan passives.
 """
-from combat_system import Upgrade, Skill, PassiveItem
+from typing import Optional
 
 
 class Inventory:
@@ -34,11 +34,14 @@ class Inventory:
         for skill in self.__skills:
             skill.update(dt)
     
-    def add_upgrade(self, upgrade: Upgrade) -> bool:
+    def add_upgrade(self, upgrade) -> bool:
         """
         Tambah upgrade baru atau level up yang sudah ada
         Returns: True jika berhasil, False jika inventory penuh
         """
+        # Import here to avoid circular imports
+        from src.combat.mechanics import Skill, PassiveItem
+        
         # Check if upgrade already exists
         if isinstance(upgrade, Skill):
             existing_skill = self._find_skill_by_name(upgrade.name)
@@ -74,14 +77,14 @@ class Inventory:
         
         return False
     
-    def _find_skill_by_name(self, name: str):
+    def _find_skill_by_name(self, name: str) -> Optional[object]:
         """Find skill by name"""
         for skill in self.__skills:
             if skill.name == name:
                 return skill
         return None
     
-    def _find_passive_by_name(self, name: str):
+    def _find_passive_by_name(self, name: str) -> Optional[object]:
         """Find passive by name"""
         for passive in self.__passives:
             if passive.name == name:
