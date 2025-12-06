@@ -644,3 +644,109 @@ class LevelUpNotification:
             text.set_alpha(alpha)
             text_rect = text.get_rect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2))
             surface.blit(text, text_rect)
+
+
+class PauseMenu:
+    """Pause Menu dengan warning tooltip untuk Main Menu button"""
+    
+    def __init__(self, display_surface: pygame.Surface):
+        self.__display_surface = display_surface
+        
+        # Load Font - Pixel Art Style
+        try:
+            self.font_title = pygame.font.Font(None, 80)  # Pixel font untuk PAUSED
+            self.font_button = pygame.font.Font(None, 36)
+            self.font_warning = pygame.font.Font(None, 24)  # Font untuk warning
+        except:
+            self.font_title = pygame.font.SysFont(None, 80)
+            self.font_button = pygame.font.SysFont(None, 36)
+            self.font_warning = pygame.font.SysFont(None, 24)
+        
+        # Posisi Tombol (Tengah Layar)
+        cx, cy = WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2
+        
+        self.btn_continue = Button("CONTINUE", (cx, cy), 300, 60, self.font_button)
+        self.btn_main_menu = Button("MAIN MENU", (cx, cy + 80), 300, 60, self.font_button)
+        
+        # Warning tooltip state
+        self.__show_warning = False
+        self.__warning_text = "Progress tidak akan di save"
+        self.__warning_color = (255, 80, 80)  # Merah terang
+    
+    def draw(self):
+        """Gambar pause menu dengan overlay"""
+        # 1. Overlay hitam semi-transparan (alpha ~128)
+        overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
+        overlay.set_alpha(128)
+        overlay.fill((0, 0, 0))
+        self.__display_surface.blit(overlay, (0, 0))
+        
+        # 2. Judul "PAUSED" di tengah atas
+        paused_text = self.font_title.render("PAUSED", False, (255, 229, 180))  # Hot glow color
+        paused_rect = paused_text.get_frect(center=(WINDOW_WIDTH // 2, 150))
+        
+        # Shadow untuk judul
+        shadow_text = self.font_title.render("PAUSED", False, (0, 0, 0))
+        shadow_rect = shadow_text.get_frect(center=(WINDOW_WIDTH // 2 + 3, 150 + 3))
+        self.__display_surface.blit(shadow_text, shadow_rect)
+        self.__display_surface.blit(paused_text, paused_rect)
+        
+        # 3. Tombol-tombol
+        self.btn_continue.draw(self.__display_surface)
+        self.btn_main_menu.draw(self.__display_surface)
+        
+        # 4. Warning Tooltip (hanya muncul saat hover di Main Menu button)
+        if self.__show_warning:
+            # Posisi warning di bawah tombol Main Menu
+            warning_x = WINDOW_WIDTH // 2
+            warning_y = self.btn_main_menu.rect.bottom + 20
+            
+            # Background untuk warning (semi-transparent red box)
+            warning_surf_text = self.font_warning.render(self.__warning_text, False, self.__warning_color)
+            warning_rect = warning_surf_text.get_rect(center=(warning_x, warning_y))
+            
+            # Box background
+            box_padding = 10
+            box_rect = warning_rect.inflate(box_padding * 2, box_padding * 2)
+            box_surf = pygame.Surface((box_rect.width, box_rect.height), pygame.SRCALPHA)
+            box_surf.fill((80, 0, 0, 180))  # Dark red semi-transparent
+            self.__display_surface.blit(box_surf, box_rect.topleft)
+            
+            # Border untuk box
+            pygame.draw.rect(self.__display_surface, self.__warning_color, box_rect, 2)
+            
+            # Shadow untuk text warning
+            shadow_warning = self.font_warning.render(self.__warning_text, False, (0, 0, 0))
+            shadow_rect_warning = shadow_warning.get_frect(center=(warning_x + 1, warning_y + 1))
+            self.__display_surface.blit(shadow_warning, shadow_rect_warning)
+            
+            # Text warning
+            self.__display_surface.blit(warning_surf_text, warning_rect)
+    
+    def update(self, event_list) -> str:
+        """
+        Update pause menu dan handle input
+        Returns: 'continue', 'main_menu', atau None
+        """
+        mouse_pos = pygame.mouse.get_pos()
+        
+        # Check hover untuk buttons
+        self.btn_continue.check_hover(mouse_pos)
+        self.btn_main_menu.check_hover(mouse_pos)
+        
+        # Show/hide warning tooltip berdasarkan hover di Main Menu button
+        self.__show_warning = self.btn_main_menu.is_hovered
+        
+        # Handle clicks
+        for event in event_list:
+            if event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    return "continue"
+            
+            if self.btn_continue.is_clicked(event):
+                return "continue"
+            
+            if self.btn_main_menu.is_clicked(event):
+                return "main_menu"
+        
+        return None

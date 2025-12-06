@@ -22,6 +22,8 @@ class GameState:
         self.__is_game_over = False
         self.__start_time = pygame.time.get_ticks()
         self.__game_over_time = 0  # Waktu saat game over
+        self.__pause_time = 0  # Total waktu yang di-pause
+        self.__last_pause_start = 0  # Waktu mulai pause terakhir
         self.__score = 0
     
     @property
@@ -55,8 +57,25 @@ class GameState:
         self.__is_running = False
     
     def toggle_pause(self) -> None:
-        """Mengubah status pause"""
+        """Mengubah status pause dan track waktu pause"""
         self.__is_paused = not self.__is_paused
+        if self.__is_paused:
+            # Mulai pause - catat waktu
+            self.__last_pause_start = pygame.time.get_ticks()
+        else:
+            # Resume - tambahkan durasi pause ke total
+            if self.__last_pause_start > 0:
+                self.__pause_time += pygame.time.get_ticks() - self.__last_pause_start
+    
+    def pause(self) -> None:
+        """Set game ke state paused"""
+        if not self.__is_paused:
+            self.toggle_pause()
+    
+    def resume(self) -> None:
+        """Resume game dari pause"""
+        if self.__is_paused:
+            self.toggle_pause()
     
     def set_game_over(self) -> None:
         """Set status game over dan bekukan waktu"""

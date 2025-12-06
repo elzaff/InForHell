@@ -9,8 +9,8 @@ from weapons import Bullet
 from enemies import EnemyFactory
 from pytmx.util_pygame import load_pygame
 from groups import AllSprites
-# Update import ui untuk MainMenu
-from ui import GameUI, GameOverScreen, LevelUpNotification, MainMenu 
+# Update import ui untuk MainMenu dan PauseMenu
+from ui import GameUI, GameOverScreen, LevelUpNotification, MainMenu, PauseMenu 
 from game_managers import GameState, SpawnManager, CollisionManager
 from combat_system import WeaponDefault, KeyboardRain
 from pathfinding import Pathfinder
@@ -56,6 +56,7 @@ class Game:
         self.__ui = GameUI(self.__display_surface)
         self.__game_over_screen = GameOverScreen(self.__display_surface)
         self.__level_up_notification = LevelUpNotification()
+        self.__pause_menu = PauseMenu(self.__display_surface)
         
         # Audio 
         try:
@@ -146,26 +147,42 @@ class Game:
                 self.__spawn_positions.append((obj.x, obj.y))
 
     def __handle_events(self) -> None:
-        """Handle input: Membedakan saat di Menu vs Gameplay"""
+        """Handle input: Membedakan saat di Menu vs Gameplay vs Pause"""
         event_list = pygame.event.get() # Ambil event sekali
         
+        # Handle QUIT event
         for event in event_list:
             if event.type == pygame.QUIT:
                 self.__game_state.stop_game()
+                return
 
-            # --- INPUT GAMEPLAY ---
-            if not self.__in_menu:
+        # --- INPUT PAUSE MENU (prioritas tertinggi jika paused) ---
+        if not self.__in_menu and self.__game_state.is_paused:
+            action = self.__pause_menu.update(event_list)
+            if action == "continue":
+                self.__game_state.resume()
+            elif action == "main_menu":
+                # Kembali ke main menu dan reset game state
+                self.__game_state.resume()  # Resume dulu untuk clear pause state
+                self.__in_menu = True
+                if self.__music: self.__music.stop()
+            return  # Jangan proses input lain saat paused
+
+        # --- INPUT GAMEPLAY ---
+        if not self.__in_menu and not self.__game_state.is_paused:
+            for event in event_list:
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_ESCAPE:
-                        # Pause/Balik ke Menu
-                        self.__in_menu = True
-                        if self.__music: self.__music.stop()
+                        # Pause game (jangan balik ke menu, tapi pause)
+                        if not self.__game_state.is_game_over:
+                            self.__game_state.pause()
                     
                     if self.__game_state.is_game_over:
                         if event.key == pygame.K_r:
                             self.__restart_game()
+            return
 
-        # --- INPUT MENU ---
+        # --- INPUT MAIN MENU ---
         if self.__in_menu:
             action = self.__main_menu.update(event_list)
             if action == "start":
@@ -182,11 +199,11 @@ class Game:
 
     def __update_game(self, dt: float) -> None:
         """Update game logic"""
-        # Kalau di menu, stop update game logic
-        if self.__in_menu:
+        # Kalau di menu atau paused, stop update game logic
+        if self.__in_menu or self.__game_state.is_paused:
             return
 
-        if not self.__game_state.is_game_over and not self.__game_state.is_paused:
+        if not self.__game_state.is_game_over:
             self.__gun_timer()
             self.__auto_shoot()
             
@@ -257,16 +274,21 @@ class Game:
         """Draw everything"""
         self.__display_surface.fill('black')
         
-        # --- LOGIKA DRAW: Menu vs Gameplay ---
+        # --- LOGIKA DRAW: Menu vs Gameplay vs Pause ---
         if self.__in_menu:
             self.__main_menu.draw()
         else:
+            # Selalu gambar gameplay (bahkan saat pause, agar situasi terlihat)
             self.__all_sprites.draw(self.__player.rect.center)
             self.__ui.draw()
             self.__ui.draw_skill_icon(self.__player.active_skill)
             self.__level_up_notification.draw(self.__display_surface)
             
-            if self.__game_state.is_game_over:
+            # Overlay untuk state khusus
+            if self.__game_state.is_paused:
+                # Gambar pause menu dengan overlay
+                self.__pause_menu.draw()
+            elif self.__game_state.is_game_over:
                 final_stats = {
                     'score': self.__game_state.score,
                     'level': self.__player.stats.level,
