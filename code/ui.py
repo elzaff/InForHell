@@ -136,7 +136,158 @@ class TextLabel(UIElement):
     def _render(self, surface: pygame.Surface) -> None:
         text_surf = self.__font.render(self.__text, True, self.__color)
         surface.blit(text_surf, self.pos)
+        
+class Button:
+    def __init__(self, text, pos, width, height, font):
+        # Hitbox utama
+        self.rect = pygame.Rect(0, 0, width, height)
+        self.rect.center = pos
+        self.text = text
+        self.font = font
+        
+        # --- WARNA TEMA GOTHIC (Merah, Emas, Hitam) ---
+        self.main_color = (80, 10, 20)       # Merah Darah Gelap
+        self.hover_color = (140, 30, 40)     # Merah Terang
+        self.border_color = (200, 150, 50)   # Emas Tua
+        self.shadow_color = (20, 5, 5)       # Hampir Hitam
+        self.text_color = (255, 240, 220)    # Putih Gading
+        
+        self.is_hovered = False
+        
+        # Bayangan tombol (offset ke bawah sedikit)
+        self.shadow_rect = self.rect.copy()
+        self.shadow_rect.y += 5
 
+    def draw(self, surface):
+        # 1. Gambar Bayangan (3D Effect)
+        pygame.draw.rect(surface, self.shadow_color, self.shadow_rect, border_radius=10)
+        
+        # 2. Gambar Tombol Utama
+        current_color = self.hover_color if self.is_hovered else self.main_color
+        pygame.draw.rect(surface, current_color, self.rect, border_radius=10)
+        
+        # 3. Gambar Border Emas
+        # Kalau di-hover, border makin tebal & bersinar
+        border_width = 4 if self.is_hovered else 2
+        pygame.draw.rect(surface, self.border_color, self.rect, border_width, border_radius=10)
+        
+        # 4. Gambar Teks (Dengan Shadow hitam biar jelas)
+        text_surf = self.font.render(self.text, True, self.text_color)
+        text_rect = text_surf.get_frect(center=self.rect.center)
+        
+        # Shadow Teks
+        shadow_surf = self.font.render(self.text, True, (0,0,0))
+        shadow_rect = shadow_surf.get_frect(center=(self.rect.centerx + 2, self.rect.centery + 2))
+        
+        surface.blit(shadow_surf, shadow_rect)
+        surface.blit(text_surf, text_rect)
+
+    def check_hover(self, mouse_pos):
+        self.is_hovered = self.rect.collidepoint(mouse_pos)
+
+    def is_clicked(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            return self.is_hovered
+        return False
+
+class MainMenu:
+    def __init__(self, display_surface):
+        self.display_surface = display_surface
+
+        # Load Font
+        try:
+            self.font_title = pygame.font.Font(join('data', 'fonts', 'Oxanium-Bold.ttf'), 100)
+            self.font_button = pygame.font.Font(join('data', 'fonts', 'Oxanium-Regular.ttf'), 40)
+        except:
+            self.font_title = pygame.font.SysFont(None, 100)
+            self.font_button = pygame.font.SysFont(None, 40)
+        
+        self.bg_image = None
+        try:
+            bg_path = join('images', 'ui', 'menu_bg.png')
+            self.bg_image = pygame.image.load(bg_path).convert()
+            # Resize gambar biar pas satu layar penuh
+            self.bg_image = pygame.transform.scale(self.bg_image, (WINDOW_WIDTH, WINDOW_HEIGHT))
+            print("Background Menu ditemukan!")
+        except:
+            print("Background Menu belum ada. Menggunakan placeholder gelap.")
+            self.bg_image = None
+
+        # Posisi Tombol (Tengah Layar)
+        cx, cy = WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2
+        
+        self.btn_start = Button("START GAME", (cx, cy), 300, 60, self.font_button)
+        self.btn_leaderboard = Button("LEADERBOARD", (cx, cy + 80), 300, 60, self.font_button)
+        self.btn_exit = Button("EXIT", (cx, cy + 160), 300, 60, self.font_button)
+        
+        self.show_leaderboard = False
+
+    def draw(self):
+        # 1. GAMBAR BACKGROUND DULUAN
+        if self.bg_image:
+            # Kalau ada gambar, tampilkan gambar
+            self.display_surface.blit(self.bg_image, (0, 0))
+            
+            overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
+            overlay.set_alpha(100) # Transparansi 0-255
+            overlay.fill((0,0,0))
+            self.display_surface.blit(overlay, (0,0))
+        else:
+            # Kalau belum ada gambar, pakai warna Abu-abu Gelap / Hitam
+            self.display_surface.fill((30, 30, 40)) 
+        
+        if not self.show_leaderboard:
+            # Judul Game (Dengan efek Shadow Merah biar seram)
+            title_text = "InForHell"
+            
+            # Shadow Merah
+            shadow_surf = self.font_title.render(title_text, True, (150, 0, 0))
+            shadow_rect = shadow_surf.get_frect(center=(WINDOW_WIDTH // 2 + 4, WINDOW_HEIGHT // 2 - 150 + 4))
+            self.display_surface.blit(shadow_surf, shadow_rect)
+            
+            # Teks Utama Putih
+            title_surf = self.font_title.render(title_text, True, 'white')
+            title_rect = title_surf.get_frect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 - 150))
+            self.display_surface.blit(title_surf, title_rect)
+
+            # Gambar Tombol
+            self.btn_start.draw(self.display_surface)
+            self.btn_leaderboard.draw(self.display_surface)
+            self.btn_exit.draw(self.display_surface)
+        
+        else:
+            # Tampilan Leaderboard (Sederhana)
+            title_surf = self.font_title.render("LEADERBOARD", True, (200, 150, 50)) # Warna Emas
+            title_rect = title_surf.get_frect(center=(WINDOW_WIDTH // 2, 100))
+            self.display_surface.blit(title_surf, title_rect)
+            
+            scores = ["1. PLAYER - 9999", "2. ??? - 0000"]
+            for i, score in enumerate(scores):
+                score_surf = self.font_button.render(score, True, 'white')
+                score_rect = score_surf.get_frect(center=(WINDOW_WIDTH // 2, 250 + i * 60))
+                self.display_surface.blit(score_surf, score_rect)
+                
+            back_surf = self.font_button.render("[ ESC to Back ]", True, 'gray')
+            back_rect = back_surf.get_frect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT - 100))
+            self.display_surface.blit(back_surf, back_rect)
+
+    def update(self, event_list):
+        mouse_pos = pygame.mouse.get_pos()
+        
+        if not self.show_leaderboard:
+            self.btn_start.check_hover(mouse_pos)
+            self.btn_leaderboard.check_hover(mouse_pos)
+            self.btn_exit.check_hover(mouse_pos)
+            
+            for event in event_list:
+                if self.btn_start.is_clicked(event): return "start"
+                if self.btn_leaderboard.is_clicked(event): self.show_leaderboard = True
+                if self.btn_exit.is_clicked(event): return "exit"
+        else:
+            for event in event_list:
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
+                    self.show_leaderboard = False
+        return None
 
 class GameUI:
     """Manager UI Utama yang mengkoordinasi semua elemen UI"""

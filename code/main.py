@@ -9,7 +9,8 @@ from weapons import Bullet
 from enemies import EnemyFactory
 from pytmx.util_pygame import load_pygame
 from groups import AllSprites
-from ui import GameUI, GameOverScreen, LevelUpNotification
+# Update import ui untuk MainMenu
+from ui import GameUI, GameOverScreen, LevelUpNotification, MainMenu 
 from game_managers import GameState, SpawnManager, CollisionManager
 from combat_system import WeaponDefault, KeyboardRain
 from pathfinding import Pathfinder
@@ -30,7 +31,15 @@ class Game:
         pygame.display.set_caption('InForHell - Vampire Survivor Clone')
         self.__clock = pygame.time.Clock()
         
-        # Game state
+        # --- MENU SYSTEM ---
+        self.__in_menu = True  # Game mulai di Menu
+        self.__main_menu = MainMenu(self.__display_surface)
+        
+        # Load aset dan komponen game tapi belum dimainkan
+        self.__setup_game_components()
+
+    def __setup_game_components(self):
+        """Fungsi helper untuk reset/setup ulang game saat Start/Restart"""
         self.__game_state = GameState()
         
         # Groups 
@@ -39,11 +48,11 @@ class Game:
         self.__bullet_sprites = pygame.sprite.Group()
         self.__enemy_sprites = pygame.sprite.Group()
         
-        # Timer Senjata (auto-shoot)
+        # Timer Senjata
         self.__can_shoot = True
         self.__shoot_time = 0 
         
-        # UI
+        # UI Gameplay
         self.__ui = GameUI(self.__display_surface)
         self.__game_over_screen = GameOverScreen(self.__display_surface)
         self.__level_up_notification = LevelUpNotification()
@@ -55,54 +64,44 @@ class Game:
             self.__impact_sound = pygame.mixer.Sound(join('audio', 'impact.ogg'))
             self.__music = pygame.mixer.Sound(join('audio', 'music.wav'))
             self.__music.set_volume(0.5)
-            # self.__music.play(loops = -1)
         except:
-            # Jika file audio tidak ada, gunakan dummy
             self.__shoot_sound = None
             self.__impact_sound = None
             self.__music = None
         
-        # Setup
+        # Setup Aset & Map
         self.__load_images()
         self.__setup()
         
-        # Managers
+        # Managers (Jangan lupa kirim pathfinder ke SpawnManager)
         self.__spawn_manager = SpawnManager(
             self.__spawn_positions, 
             self.__enemy_frames, 
             self.__pathfinder 
         )
         self.__collision_manager = CollisionManager(self.__impact_sound)
-    
+
     def __load_images(self) -> None:
+        """Memuat gambar dengan aman (Anti-Mac Crash)"""
         self.__bullet_surf = pygame.image.load(join('images', 'gun', 'bullet.png')).convert_alpha()
 
-        # Path ke folder enemies
         enemies_path = join('images', 'enemies')
         self.__enemy_frames = {}
 
-        # Cek folder enemies ada atau tidak
         if not list(walk(enemies_path)):
-            print("Folder images/enemies tidak ditemukan!")
             return
-        folder_walker = list(walk(enemies_path))
-        if not folder_walker:
-             return
         
-        folders = folder_walker[0][1]
+        folders = list(walk(enemies_path))[0][1]
 
         for folder in folders:
             folder_path = join(enemies_path, folder)
             self.__enemy_frames[folder] = []
             
-            # Ambil semua file dalam folder spesifik itu
             for _, __, file_names in walk(folder_path):
                 png_files = [f for f in file_names if f.endswith('.png')]
-        
                 try:
                     png_files.sort(key=lambda name: int(name.split('.')[0]))
                 except ValueError:
-                    print(f"Warning: Ada nama file aneh di folder '{folder}', pakai sort biasa.")
                     png_files.sort()
 
                 for file_name in png_files:
@@ -110,46 +109,14 @@ class Game:
                     try:
                         surf = pygame.image.load(full_path).convert_alpha()
                         self.__enemy_frames[folder].append(surf)
-                    except Exception as e:
-                        print(f"Gagal load {file_name}: {e}")
-
-    def __auto_shoot(self) -> None:
-        """
-        Auto-shoot dengan cooldown.
-        Menggunakan logika dari WeaponDefault.
-        """
-        if self.__can_shoot and self.__player.stats.is_alive:
-            if self.__shoot_sound:
-                self.__shoot_sound.play()
-            
-            # Gunakan logika weapon untuk mendapatkan info tembakan
-            if self.__player.weapon:
-                shoot_info = self.__player.weapon.attack()
-                
-                Bullet(
-                    surf=self.__bullet_surf,
-                    pos=shoot_info['position'],
-                    direction=shoot_info['direction'],
-                    groups=(self.__all_sprites, self.__bullet_sprites),
-                    damage=shoot_info['damage']
-                )
-            
-            self.__can_shoot = False
-            self.__shoot_time = pygame.time.get_ticks()
-
-    def __gun_timer(self) -> None:
-        """Update cooldown timer senjata"""
-        if not self.__can_shoot:
-            current_time = pygame.time.get_ticks()
-            # Gunakan cooldown dari weapon jika ada
-            cooldown = self.__player.weapon.cooldown if self.__player.weapon else GUN_COOLDOWN
-            
-            if current_time - self.__shoot_time >= cooldown:
-                self.__can_shoot = True
+                    except:
+                        pass
 
     def __setup(self) -> None:
         """Setup dunia game dari TMX map"""
         map = load_pygame(join('data', 'maps', 'world.tmx'))
+        
+        # Init Pathfinder
         self.__pathfinder = Pathfinder(map)
 
         for x, y, image in map.get_layer_by_name('Ground').tiles():
@@ -166,13 +133,11 @@ class Game:
             if obj.name == 'Player':
                 self.__player = Player((obj.x, obj.y), self.__all_sprites, self.__collision_sprites)
                 
-                # Inisialisasi WeaponDefault dan pasang ke Player
                 self.__player.weapon = WeaponDefault(
                     player=self.__player,
                     groups=(self.__all_sprites, self.__bullet_sprites)
                 )
                 
-                # Inisialisasi Skill KeyboardRain
                 self.__player.active_skill = KeyboardRain(
                     groups=(self.__all_sprites, self.__bullet_sprites)
                 )
@@ -180,75 +145,58 @@ class Game:
             else:
                 self.__spawn_positions.append((obj.x, obj.y))
 
-    def __bullet_collision(self) -> None:
-        """Handle collision antara bullet dan enemy"""
-        result = self.__collision_manager.check_bullet_enemy(
-            self.__bullet_sprites,
-            self.__enemy_sprites,
-            self.__player
-        )
-        
-        # Show level up notification jika ada
-        if result['level_up']:
-            self.__level_up_notification.trigger(self.__player.stats.level)
-            # Level up weapon juga
-            if self.__player.weapon:
-                self.__player.weapon.level_up()
-            # Level up skill juga jika ada
-            if self.__player.active_skill:
-                self.__player.active_skill.level_up()
-
-    def __player_collision(self) -> None:
-        """Handle collision antara player dan enemy"""
-        took_damage = self.__collision_manager.check_player_enemy(
-            self.__player,
-            self.__enemy_sprites
-        )
-        
-        # Check if player died
-        if took_damage and not self.__player.stats.is_alive:
-            self.__game_state.set_game_over()
-
     def __handle_events(self) -> None:
-        """Handle pygame events"""
-        for event in pygame.event.get():
+        """Handle input: Membedakan saat di Menu vs Gameplay"""
+        event_list = pygame.event.get() # Ambil event sekali
+        
+        for event in event_list:
             if event.type == pygame.QUIT:
                 self.__game_state.stop_game()
-            
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_ESCAPE:
-                    self.__game_state.stop_game()
-                
-                # Restart game when game over
-                if self.__game_state.is_game_over:
-                    if event.key == pygame.K_r:
-                        self.__restart_game()
-    
+
+            # --- INPUT GAMEPLAY ---
+            if not self.__in_menu:
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_ESCAPE:
+                        # Pause/Balik ke Menu
+                        self.__in_menu = True
+                        if self.__music: self.__music.stop()
+                    
+                    if self.__game_state.is_game_over:
+                        if event.key == pygame.K_r:
+                            self.__restart_game()
+
+        # --- INPUT MENU ---
+        if self.__in_menu:
+            action = self.__main_menu.update(event_list)
+            if action == "start":
+                self.__in_menu = False
+                self.__restart_game()
+            elif action == "exit":
+                self.__game_state.stop_game()
+
     def __restart_game(self) -> None:
-        """Restart game dengan state baru"""
-        self.__init__()
-    
+        """Restart game total"""
+        self.__setup_game_components()
+        if self.__music: 
+            self.__music.play(loops=-1)
+
     def __update_game(self, dt: float) -> None:
         """Update game logic"""
+        # Kalau di menu, stop update game logic
+        if self.__in_menu:
+            return
+
         if not self.__game_state.is_game_over and not self.__game_state.is_paused:
-            # Update timers
             self.__gun_timer()
-            
-            # Auto-shoot
             self.__auto_shoot()
             
-            # Update active skill
             if self.__player.active_skill:
                 self.__player.active_skill.update(dt)
             
-            # Update sprites
             self.__all_sprites.update(dt)
-            
-            # Update collisions
             self.__bullet_collision()
             self.__player_collision()
             
-            # Update enemy spawning
             elapsed_time = self.__game_state.elapsed_time
             self.__spawn_manager.update_difficulty(elapsed_time)
             
@@ -260,61 +208,83 @@ class Game:
                     EnemyFactory
                 )
             
-            # Update UI
             self.__ui.update_player_stats(self.__player.stats)
             self.__ui.update_time(elapsed_time)
             
-            # Calculate and update score
             score = self.__game_state.calculate_score(self.__player.stats)
             self.__ui.update_score(score)
             
-            # Update level up notification
             self.__level_up_notification.update()
     
+    # Fungsi helper yang hilang di kode kamu
+    def __gun_timer(self) -> None:
+        if not self.__can_shoot:
+            current_time = pygame.time.get_ticks()
+            cooldown = self.__player.weapon.cooldown if self.__player.weapon else GUN_COOLDOWN
+            if current_time - self.__shoot_time >= cooldown:
+                self.__can_shoot = True
+
+    def __auto_shoot(self) -> None:
+        if self.__can_shoot and self.__player.stats.is_alive:
+            if self.__shoot_sound: self.__shoot_sound.play()
+            if self.__player.weapon:
+                shoot_info = self.__player.weapon.attack()
+                Bullet(
+                    surf=self.__bullet_surf,
+                    pos=shoot_info['position'],
+                    direction=shoot_info['direction'],
+                    groups=(self.__all_sprites, self.__bullet_sprites),
+                    damage=shoot_info['damage']
+                )
+            self.__can_shoot = False
+            self.__shoot_time = pygame.time.get_ticks()
+
+    def __bullet_collision(self) -> None:
+        result = self.__collision_manager.check_bullet_enemy(
+            self.__bullet_sprites, self.__enemy_sprites, self.__player
+        )
+        if result['level_up']:
+            self.__level_up_notification.trigger(self.__player.stats.level)
+            if self.__player.weapon: self.__player.weapon.level_up()
+            if self.__player.active_skill: self.__player.active_skill.level_up()
+
+    def __player_collision(self) -> None:
+        took_damage = self.__collision_manager.check_player_enemy(self.__player, self.__enemy_sprites)
+        if took_damage and not self.__player.stats.is_alive:
+            self.__game_state.set_game_over()
+
     def __draw_game(self) -> None:
         """Draw everything"""
-        # Clear screen
         self.__display_surface.fill('black')
         
-        # Draw sprites
-        self.__all_sprites.draw(self.__player.rect.center)
-        
-        # Draw UI
-        self.__ui.draw()
-        self.__ui.draw_skill_icon(self.__player.active_skill)
-        
-        # Draw level up notification
-        self.__level_up_notification.draw(self.__display_surface)
-        
-        # Draw game over screen if game over
-        if self.__game_state.is_game_over:
-            final_stats = {
-                'score': self.__game_state.score,
-                'level': self.__player.stats.level,
-                'kills': self.__player.stats.kills,
-                'time': f"{int(self.__game_state.elapsed_time // 60)}:{int(self.__game_state.elapsed_time % 60):02d}"
-            }
-            self.__game_over_screen.draw(final_stats)
+        # --- LOGIKA DRAW: Menu vs Gameplay ---
+        if self.__in_menu:
+            self.__main_menu.draw()
+        else:
+            self.__all_sprites.draw(self.__player.rect.center)
+            self.__ui.draw()
+            self.__ui.draw_skill_icon(self.__player.active_skill)
+            self.__level_up_notification.draw(self.__display_surface)
+            
+            if self.__game_state.is_game_over:
+                final_stats = {
+                    'score': self.__game_state.score,
+                    'level': self.__player.stats.level,
+                    'kills': self.__player.stats.kills,
+                    'time': f"{int(self.__game_state.elapsed_time // 60)}:{int(self.__game_state.elapsed_time % 60):02d}"
+                }
+                self.__game_over_screen.draw(final_stats)
         
         pygame.display.update()
     
     def run(self) -> None:
         """Main game loop"""
         while self.__game_state.is_running:
-            # Delta time
             dt = self.__clock.tick(FPS) / 1000
-            
-            # Handle events
             self.__handle_events()
-            
-            # Update
             self.__update_game(dt)
-            
-            # Draw
             self.__draw_game()
-        
         pygame.quit()
-
 
 if __name__ == '__main__':
     game = Game()
