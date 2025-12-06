@@ -143,43 +143,166 @@ class Button:
         self.rect = pygame.Rect(0, 0, width, height)
         self.rect.center = pos
         self.text = text
-        self.font = font
+        # Gunakan font pixel art style
+        self.font = pygame.font.Font(None, 36)  # None = default pixel font pygame
         
-        # --- WARNA TEMA GOTHIC (Merah, Emas, Hitam) ---
-        self.main_color = (80, 10, 20)       # Merah Darah Gelap
-        self.hover_color = (140, 30, 40)     # Merah Terang
-        self.border_color = (200, 150, 50)   # Emas Tua
-        self.shadow_color = (20, 5, 5)       # Hampir Hitam
-        self.text_color = (255, 240, 220)    # Putih Gading
+        # --- MOLTEN ROCK & LAVA THEME PALETTE ---
+        self.stone_surface_dark = (62, 40, 40)      # #3E2828 - Batu gelap/hangus
+        self.stone_highlight = (80, 55, 50)         # Highlight batu
+        self.lava_glow_highlight = (255, 140, 0)    # #FF8C00 - Oranye terang retakan lahar
+        self.lava_bright = (255, 200, 80)           # Lava sangat terang
+        self.magma_crust_outline = (26, 15, 15)     # #1A0F0F - Outline kerak magma
+        self.text_hot_glow = (255, 229, 180)        # #FFE5B4 - Teks kuning pucat panas
+        self.heat_shadow = (102, 34, 0)             # #662200 - Bayangan merah tua panas
         
         self.is_hovered = False
         
-        # Bayangan tombol (offset ke bawah sedikit)
+        # Pixel art shadow - lebih blocky dengan warna lava
         self.shadow_rect = self.rect.copy()
-        self.shadow_rect.y += 5
+        self.shadow_rect.y += 4
+        self.shadow_rect.x += 4
+        self.lava_shadow = (180, 80, 0)  # Oranye seperti lava untuk shadow
+
+    def _draw_pixel_cracks(self, surface, base_x, base_y, color, scale=1):
+        """Gambar pola retakan lava pixel art"""
+        # Pattern retakan dalam bentuk pixel art (zigzag dan cabang)
+        pixels = [
+            # Main crack horizontal
+            (0, 0), (1, 0), (2, 0), (3, 0), (4, 0), (5, 0), (6, 0), (7, 0), (8, 0), (9, 0),
+            # Branch 1 (ke atas)
+            (2, -1), (2, -2),
+            # Branch 2 (ke bawah)
+            (5, 1), (5, 2), (6, 2),
+            # Branch 3 (ke atas)
+            (7, -1),
+            # Small cracks
+            (3, 1), (8, -1)
+        ]
+        
+        for px, py in pixels:
+            x = base_x + (px * scale * 3)
+            y = base_y + (py * scale * 3)
+            pygame.draw.rect(surface, color, (x, y, scale * 3, scale * 3))
 
     def draw(self, surface):
-        # 1. Gambar Bayangan (3D Effect)
-        pygame.draw.rect(surface, self.shadow_color, self.shadow_rect, border_radius=10)
+        # 1. Pixel art shadow (blocky, tidak rounded) - warna oranye lava
+        pygame.draw.rect(surface, self.lava_shadow, self.shadow_rect)
         
-        # 2. Gambar Tombol Utama
-        current_color = self.hover_color if self.is_hovered else self.main_color
-        pygame.draw.rect(surface, current_color, self.rect, border_radius=10)
+        # 2. Base stone surface dengan pixel art texture
+        pygame.draw.rect(surface, self.stone_surface_dark, self.rect)
         
-        # 3. Gambar Border Emas
-        # Kalau di-hover, border makin tebal & bersinar
-        border_width = 4 if self.is_hovered else 2
-        pygame.draw.rect(surface, self.border_color, self.rect, border_width, border_radius=10)
+        # Tambah texture stone pixel art (dots/noise)
+        import random
+        random.seed(hash(self.text))  # Konsisten untuk setiap button
+        for _ in range(15):
+            x = self.rect.left + random.randint(5, self.rect.width - 5)
+            y = self.rect.top + random.randint(5, self.rect.height - 5)
+            pygame.draw.rect(surface, self.stone_highlight, (x, y, 2, 2))
         
-        # 4. Gambar Teks (Dengan Shadow hitam biar jelas)
-        text_surf = self.font.render(self.text, True, self.text_color)
+        # 3. Lava crack pattern - MENYEBAR KE SELURUH BUTTON
+        if self.is_hovered:
+            crack_color = self.lava_bright
+            crack_glow = self.lava_glow_highlight
+        else:
+            crack_color = self.lava_glow_highlight
+            crack_glow = self.heat_shadow
+        
+        # Retakan horizontal yang menyebar dari kiri ke kanan
+        num_horizontal = 4
+        for i in range(num_horizontal):
+            y_pos = self.rect.top + 10 + (i * (self.rect.height - 20) // (num_horizontal - 1))
+            # Main horizontal crack
+            for x_offset in range(0, self.rect.width - 20, 3):
+                x_pos = self.rect.left + 10 + x_offset
+                # Variasi ketebalan retakan
+                thickness = 2 if (x_offset // 3) % 3 == 0 else 3
+                pygame.draw.rect(surface, crack_color, (x_pos, y_pos, thickness, 2))
+        
+        # Retakan vertikal yang menyambung
+        num_vertical = 6
+        for i in range(num_vertical):
+            x_pos = self.rect.left + 15 + (i * (self.rect.width - 30) // (num_vertical - 1))
+            # Main vertical crack dengan variasi
+            for y_offset in range(0, self.rect.height - 25, 4):
+                y_pos = self.rect.top + 10 + y_offset
+                # Skip beberapa pixel untuk efek putus-putus
+                if (y_offset // 4) % 3 != 2:
+                    pygame.draw.rect(surface, crack_color, (x_pos, y_pos, 2, 3))
+        
+        # Retakan diagonal untuk variasi
+        # Diagonal kiri atas ke kanan bawah
+        for i in range(0, min(self.rect.width, self.rect.height) - 20, 5):
+            x_pos = self.rect.left + 10 + i
+            y_pos = self.rect.top + 5 + (i * self.rect.height // self.rect.width)
+            if i % 10 < 7:  # Putus-putus
+                pygame.draw.rect(surface, crack_color, (x_pos, y_pos, 2, 2))
+        
+        # Diagonal kanan atas ke kiri bawah
+        for i in range(0, min(self.rect.width, self.rect.height) - 20, 5):
+            x_pos = self.rect.right - 10 - i
+            y_pos = self.rect.top + 5 + (i * self.rect.height // self.rect.width)
+            if i % 10 < 7:  # Putus-putus
+                pygame.draw.rect(surface, crack_color, (x_pos, y_pos, 2, 2))
+        
+        # Retakan cabang kecil-kecil (detail)
+        random.seed(hash(self.text) + 1)
+        for _ in range(25):
+            x = self.rect.left + random.randint(10, self.rect.width - 10)
+            y = self.rect.top + random.randint(10, self.rect.height - 10)
+            # Mini retakan 3-5 pixel
+            length = random.randint(2, 4)
+            direction = random.choice(['h', 'v'])
+            if direction == 'h':
+                for dx in range(length):
+                    pygame.draw.rect(surface, crack_color, (x + dx * 2, y, 2, 2))
+            else:
+                for dy in range(length):
+                    pygame.draw.rect(surface, crack_color, (x, y + dy * 2, 2, 2))
+        
+        # Glow effect di sekitar retakan saat hover
+        if self.is_hovered:
+            # Glow di sepanjang tepi button
+            glow_positions = [
+                (self.rect.left + 5, self.rect.top + 5),
+                (self.rect.centerx, self.rect.top + 5),
+                (self.rect.right - 5, self.rect.top + 5),
+                (self.rect.left + 5, self.rect.centery),
+                (self.rect.right - 5, self.rect.centery),
+                (self.rect.left + 5, self.rect.bottom - 5),
+                (self.rect.centerx, self.rect.bottom - 5),
+                (self.rect.right - 5, self.rect.bottom - 5),
+            ]
+            for gx, gy in glow_positions:
+                pygame.draw.rect(surface, crack_glow, (gx, gy, 3, 3))
+        
+        # 4. Pixel art border (thick, blocky)
+        # Outer border (very dark)
+        pygame.draw.rect(surface, self.magma_crust_outline, self.rect, 4)
+        
+        # Inner border highlight (lava glow saat hover)
+        if self.is_hovered:
+            inner_rect = self.rect.inflate(-8, -8)
+            pygame.draw.rect(surface, self.lava_glow_highlight, inner_rect, 2)
+        
+        # 5. Text dengan shadow berlayer untuk keterbacaan maksimal
+        # Shadow layer 1 (paling gelap, paling jauh)
+        shadow_surf1 = self.font.render(self.text, False, (0, 0, 0))
+        shadow_rect1 = shadow_surf1.get_frect(center=(self.rect.centerx + 3, self.rect.centery + 3))
+        surface.blit(shadow_surf1, shadow_rect1)
+        
+        # Shadow layer 2 (medium dark)
+        shadow_surf2 = self.font.render(self.text, False, self.magma_crust_outline)
+        shadow_rect2 = shadow_surf2.get_frect(center=(self.rect.centerx + 2, self.rect.centery + 2))
+        surface.blit(shadow_surf2, shadow_rect2)
+        
+        # Shadow layer 3 (heat shadow - oranye gelap)
+        shadow_surf3 = self.font.render(self.text, False, self.heat_shadow)
+        shadow_rect3 = shadow_surf3.get_frect(center=(self.rect.centerx + 1, self.rect.centery + 1))
+        surface.blit(shadow_surf3, shadow_rect3)
+        
+        # Main text (hot glow - sangat terang)
+        text_surf = self.font.render(self.text, False, self.text_hot_glow)
         text_rect = text_surf.get_frect(center=self.rect.center)
-        
-        # Shadow Teks
-        shadow_surf = self.font.render(self.text, True, (0,0,0))
-        shadow_rect = shadow_surf.get_frect(center=(self.rect.centerx + 2, self.rect.centery + 2))
-        
-        surface.blit(shadow_surf, shadow_rect)
         surface.blit(text_surf, text_rect)
 
     def check_hover(self, mouse_pos):
@@ -190,31 +313,78 @@ class Button:
             return self.is_hovered
         return False
 
+class FireParticle:
+    """Partikel efek api untuk background menu"""
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.vx = pygame.math.Vector2(
+            (pygame.math.Vector2(0, 0).x - 0.5) * 2,
+            -abs(pygame.math.Vector2(0, 0).y - 1) * 3 - 1
+        )
+        self.vy = -abs(pygame.math.Vector2(0, 0).y - 1) * 3 - 1
+        self.lifetime = pygame.math.Vector2(0, 0).x * 60 + 30  # 30-90 frames
+        self.age = 0
+        self.size = pygame.math.Vector2(0, 0).x * 4 + 2  # 2-6 pixels
+        
+        # Warna api: merah -> oranye -> kuning
+        r = int(255)
+        g = int(pygame.math.Vector2(0, 0).x * 100)
+        b = 0
+        self.color = (r, g, b)
+    
+    def update(self):
+        self.x += (pygame.math.Vector2(0, 0).x - 0.5) * 0.5
+        self.y += self.vy
+        self.age += 1
+        
+        # Fade out
+        alpha = 1 - (self.age / self.lifetime)
+        if alpha < 0:
+            alpha = 0
+        self.alpha = alpha
+        
+        return self.age < self.lifetime
+    
+    def draw(self, surface):
+        if self.alpha > 0:
+            # Buat surface dengan alpha
+            s = pygame.Surface((int(self.size * 2), int(self.size * 2)), pygame.SRCALPHA)
+            alpha_val = int(self.alpha * 255)
+            color = (*self.color, alpha_val)
+            pygame.draw.circle(s, color, (int(self.size), int(self.size)), int(self.size))
+            surface.blit(s, (int(self.x - self.size), int(self.y - self.size)), special_flags=pygame.BLEND_RGBA_ADD)
+
+
 class MainMenu:
+    """Main Menu dengan tema neraka yang lebih keren"""
     def __init__(self, display_surface):
         self.display_surface = display_surface
 
-        # Load Font
+        # Load Font - Pixel Art Style
         try:
-            self.font_title = pygame.font.Font(join('data', 'fonts', 'Oxanium-Bold.ttf'), 100)
-            self.font_button = pygame.font.Font(join('data', 'fonts', 'Oxanium-Regular.ttf'), 40)
+            # Coba load font pixel art jika ada
+            self.font_button = pygame.font.Font(None, 40)  # Default pygame font lebih pixel-like
+            self.font_subtitle = pygame.font.Font(None, 24)
         except:
-            self.font_title = pygame.font.SysFont(None, 100)
             self.font_button = pygame.font.SysFont(None, 40)
+            self.font_subtitle = pygame.font.SysFont(None, 24)
         
-        self.bg_image = None
+        # Load Logo InForHell (Static, tanpa teks judul)
+        self.logo = None
         try:
-            bg_path = join('images', 'ui', 'menu_bg.png')
-            self.bg_image = pygame.image.load(bg_path).convert()
-            # Resize gambar biar pas satu layar penuh
-            self.bg_image = pygame.transform.scale(self.bg_image, (WINDOW_WIDTH, WINDOW_HEIGHT))
-            print("Background Menu ditemukan!")
-        except:
-            print("Background Menu belum ada. Menggunakan placeholder gelap.")
-            self.bg_image = None
+            logo_path = join('images', 'ui', 'inforhell.png')
+            self.logo = pygame.image.load(logo_path).convert_alpha()
+            # Resize logo lebih besar
+            logo_size = 450  # ukuran logo diperbesar
+            self.logo = pygame.transform.scale(self.logo, (logo_size, logo_size))
+            print("Logo InForHell berhasil dimuat!")
+        except Exception as e:
+            print(f"Logo tidak ditemukan: {e}")
+            self.logo = None
 
-        # Posisi Tombol (Tengah Layar)
-        cx, cy = WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2
+        # Posisi Tombol (Tengah Layar, lebih ke bawah untuk kasih ruang logo)
+        cx, cy = WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 + 80
         
         self.btn_start = Button("START GAME", (cx, cy), 300, 60, self.font_button)
         self.btn_leaderboard = Button("LEADERBOARD", (cx, cy + 80), 300, 60, self.font_button)
@@ -223,55 +393,44 @@ class MainMenu:
         self.show_leaderboard = False
 
     def draw(self):
-        # 1. GAMBAR BACKGROUND DULUAN
-        if self.bg_image:
-            # Kalau ada gambar, tampilkan gambar
-            self.display_surface.blit(self.bg_image, (0, 0))
-            
-            overlay = pygame.Surface((WINDOW_WIDTH, WINDOW_HEIGHT))
-            overlay.set_alpha(100) # Transparansi 0-255
-            overlay.fill((0,0,0))
-            self.display_surface.blit(overlay, (0,0))
-        else:
-            # Kalau belum ada gambar, pakai warna Abu-abu Gelap / Hitam
-            self.display_surface.fill((30, 30, 40)) 
+        # 1. BACKGROUND - Hitam kemerahan solid (siap diganti dengan video/animated bg)
+        self.display_surface.fill((15, 5, 5))  # Hitam dengan sedikit merah
         
         if not self.show_leaderboard:
-            # Judul Game (Dengan efek Shadow Merah biar seram)
-            title_text = "InForHell"
-            
-            # Shadow Merah
-            shadow_surf = self.font_title.render(title_text, True, (150, 0, 0))
-            shadow_rect = shadow_surf.get_frect(center=(WINDOW_WIDTH // 2 + 4, WINDOW_HEIGHT // 2 - 150 + 4))
-            self.display_surface.blit(shadow_surf, shadow_rect)
-            
-            # Teks Utama Putih
-            title_surf = self.font_title.render(title_text, True, 'white')
-            title_rect = title_surf.get_frect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 - 150))
-            self.display_surface.blit(title_surf, title_rect)
+            # 2. LOGO INFORHELL - Static, sebagai judul utama
+            if self.logo:
+                logo_x = WINDOW_WIDTH // 2 - self.logo.get_width() // 2
+                logo_y = 50  # posisi di bagian atas
+                self.display_surface.blit(self.logo, (logo_x, logo_y))
 
-            # Gambar Tombol
+            # 3. TOMBOL-TOMBOL
             self.btn_start.draw(self.display_surface)
             self.btn_leaderboard.draw(self.display_surface)
             self.btn_exit.draw(self.display_surface)
         
         else:
-            # Tampilan Leaderboard (Sederhana)
-            title_surf = self.font_title.render("LEADERBOARD", True, (200, 150, 50)) # Warna Emas
+            # Tampilan Leaderboard dengan tema neraka
+            try:
+                title_font = pygame.font.Font(join('data', 'fonts', 'Oxanium-Bold.ttf'), 80)
+            except:
+                title_font = pygame.font.SysFont(None, 80)
+            
+            title_surf = title_font.render("LEADERBOARD", True, (255, 150, 0))
             title_rect = title_surf.get_frect(center=(WINDOW_WIDTH // 2, 100))
             self.display_surface.blit(title_surf, title_rect)
             
             scores = ["1. PLAYER - 9999", "2. ??? - 0000"]
             for i, score in enumerate(scores):
-                score_surf = self.font_button.render(score, True, 'white')
+                score_surf = self.font_button.render(score, True, (255, 220, 180))
                 score_rect = score_surf.get_frect(center=(WINDOW_WIDTH // 2, 250 + i * 60))
                 self.display_surface.blit(score_surf, score_rect)
                 
-            back_surf = self.font_button.render("[ ESC to Back ]", True, 'gray')
+            back_surf = self.font_button.render("[ ESC to Back ]", True, (150, 100, 80))
             back_rect = back_surf.get_frect(center=(WINDOW_WIDTH // 2, WINDOW_HEIGHT - 100))
             self.display_surface.blit(back_surf, back_rect)
 
     def update(self, event_list):
+        # Handle input
         mouse_pos = pygame.mouse.get_pos()
         
         if not self.show_leaderboard:
