@@ -164,7 +164,7 @@ class Button:
         self.shadow_rect = self.rect.copy()
         self.shadow_rect.y += 4
         self.shadow_rect.x += 4
-        self.lava_shadow = (180, 80, 0)
+        self.lava_shadow = (217, 219, 68)
 
     def draw(self, surface):
         import random

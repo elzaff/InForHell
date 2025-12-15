@@ -3,6 +3,7 @@ UI MENUS MODULE
 MainMenu, PauseMenu, GameOverScreen, LevelUpNotification, LevelUpSelectionMenu
 """
 import pygame
+import math
 from typing import List, Optional, Any
 from os.path import join
 from settings import WINDOW_WIDTH, WINDOW_HEIGHT, WHITE, RED, YELLOW, BLACK
@@ -32,10 +33,31 @@ class MainMenu:
             self.logo = pygame.image.load(logo_path).convert_alpha()
             logo_size = 450
             self.logo = pygame.transform.scale(self.logo, (logo_size, logo_size))
+            
+            # Setup for animation
+            self.logo_original = self.logo
+            # Create yellow shadow silhouette
+            mask = pygame.mask.from_surface(self.logo)
+            self.logo_shadow = mask.to_surface(setcolor=(240, 150, 55), unsetcolor=(0,0,0,0))
+            
             print("Logo InForHell berhasil dimuat!")
         except Exception as e:
             print(f"Logo tidak ditemukan: {e}")
             self.logo = None
+            self.logo_original = None
+            self.logo_shadow = None
+
+        # Load Background
+        self.background = None
+        try:
+            bg_path = join('images', 'ui', 'menu_bg.png')
+            self.background = pygame.image.load(bg_path).convert()
+            bg_size = (WINDOW_WIDTH, WINDOW_HEIGHT)
+            self.background = pygame.transform.scale(self.background, bg_size)
+            print("Background berhasil dimuat!")
+        except Exception as e:
+            print(f"Background tidak ditemukan: {e}")
+            self.background = None
 
         # Posisi Tombol
         cx, cy = WINDOW_WIDTH // 2, WINDOW_HEIGHT // 2 + 80
@@ -48,14 +70,49 @@ class MainMenu:
 
     def draw(self):
         # 1. Background
-        self.display_surface.fill((15, 5, 5))
+        if self.background:
+            self.display_surface.blit(self.background, (0, 0))
+        else:
+            self.display_surface.fill((15, 5, 5))
         
         if not self.show_leaderboard:
             # 2. Logo
-            if self.logo:
-                logo_x = WINDOW_WIDTH // 2 - self.logo.get_width() // 2
-                logo_y = 50
-                self.display_surface.blit(self.logo, (logo_x, logo_y))
+            # 2. Logo (Animated)
+            if self.logo_original:
+                # Pulsing animation logic
+                time_now = pygame.time.get_ticks()
+                pulse = math.sin(time_now * 0.003) # Speed
+                scale = 1.0 + 0.05 * pulse # Amplitude +/- 5%
+                
+                orig_rect = self.logo_original.get_rect()
+                new_w = int(orig_rect.width * scale)
+                new_h = int(orig_rect.height * scale)
+                
+                # Scale logo and shadow
+                logo_surf = pygame.transform.scale(self.logo_original, (new_w, new_h))
+                shadow_surf = pygame.transform.scale(self.logo_shadow, (new_w, new_h))
+                
+                # Position (keep centered at original center)
+                center_x = WINDOW_WIDTH // 2
+                center_y = 50 + orig_rect.height // 2
+                
+                logo_rect = logo_surf.get_rect(center=(center_x, center_y))
+                
+                # Draw Outline (8 directions)
+                offsets = [
+                    (-3, -3), (0, -3), (3, -3),
+                    (-3, 0),           (3, 0),
+                    (-3, 3),  (0, 3),  (3, 3)
+                ]
+                
+                for dx, dy in offsets:
+                    outline_rect = logo_rect.copy()
+                    outline_rect.x += dx
+                    outline_rect.y += dy
+                    self.display_surface.blit(shadow_surf, outline_rect)
+                
+                # Draw Logo
+                self.display_surface.blit(logo_surf, logo_rect)
 
             # 3. Buttons
             self.btn_start.draw(self.display_surface)
