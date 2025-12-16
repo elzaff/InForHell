@@ -1,6 +1,7 @@
 """
 UI HUD MODULE
 GameUI Overlay untuk gameplay.
+Updated: Original Style + Boss Health Bar Support
 """
 import pygame
 from typing import Any
@@ -91,6 +92,7 @@ class GameUI:
         pygame.draw.rect(self.__display_surface, DARK_GRAY, rect)
         
         # Cooldown Overlay
+        # Menggunakan cooldown_progress sesuai kode asli kamu
         progress = skill.cooldown_progress
         if progress < 1.0:
             # Calculate height of overlay (inverse of progress)
@@ -120,6 +122,34 @@ class GameUI:
             text_rect = text.get_rect(center=rect.center)
             self.__display_surface.blit(text, text_rect)
     
+    # --- INI METHOD YANG HILANG SEBELUMNYA ---
+    # Saya tambahkan agar kompatibel dengan game.py, tapi stylenya mengikuti seleramu (Simple)
+    def draw_boss_health(self, boss_sprite: Any) -> None:
+        if not boss_sprite or boss_sprite.health_percentage <= 0:
+            return
+
+        # Bar Darah Boss di bawah tengah
+        bar_width = WINDOW_WIDTH - 400
+        bar_height = 25
+        x = 200
+        y = WINDOW_HEIGHT - 50
+        
+        # Background (Dark Gray)
+        pygame.draw.rect(self.__display_surface, DARK_GRAY, (x, y, bar_width, bar_height), border_radius=5)
+        
+        # Fill (Red)
+        fill_width = int(bar_width * boss_sprite.health_percentage)
+        pygame.draw.rect(self.__display_surface, (200, 0, 0), (x, y, fill_width, bar_height), border_radius=5)
+        
+        # Border (Yellow - Cocok dengan style level kamu)
+        pygame.draw.rect(self.__display_surface, YELLOW, (x, y, bar_width, bar_height), 2, border_radius=5)
+        
+        # Label "BOSS"
+        font = pygame.font.Font(None, 30)
+        text = font.render("BOSS", True, YELLOW)
+        text_rect = text.get_rect(center=(x + bar_width // 2, y - 15))
+        self.__display_surface.blit(text, text_rect)
+
     def draw(self) -> None:
         """Gambar semua elemen UI"""
         for element in self.__ui_elements:
