@@ -1,39 +1,35 @@
 """
-SPAWN MANAGER MODULE
-Updated: Added Boss Spawn Logic + Random Spawn Position
+Spawn Manager Module
+Mengelola spawn enemy dan boss.
 """
 import pygame
 from random import choice, randint
-from typing import List, Tuple, Dict, Any
 from settings import ENEMY_SPAWN_INTERVAL, ENEMY_SPAWN_DISTANCE
 
-# Konstanta internal (Bisa dipindah ke settings.py jika mau)
-BOSS_SPAWN_INTERVAL = 60  # Detik (Setiap 1 menit ada boss)
+# Konstanta spawn
+BOSS_SPAWN_INTERVAL = 180  # Spawn boss setiap 180 detik (3 menit)
+BOSS_SEQUENCE = ['glitchslime', 'dinointernet', 'burnout', 'evilpaper', 'procrastinatemonster']
+
 
 class SpawnManager:
-    """
-    Mengelola kemunculan musuh dan Boss.
-    """
+    """Mengelola spawn enemy dan boss dengan difficulty scaling."""
     
-    def __init__(self, spawn_positions: List[Tuple[int, int]], 
-                 enemy_frames: Dict[str, List[pygame.Surface]], 
-                 pathfinder, map_width: int, map_height: int): 
-                 
+    def __init__(self, spawn_positions, enemy_frames, pathfinder, map_width: int, map_height: int): 
         self.__spawn_positions = spawn_positions
         self.__enemy_frames = enemy_frames
         self.__pathfinder = pathfinder 
         self.map_width = map_width
         self.map_height = map_height
         
-        # Timer & Difficulty
+        # Timer dan difficulty
         self.__spawn_interval = ENEMY_SPAWN_INTERVAL
         self.__last_spawn_time = pygame.time.get_ticks()
         self.__difficulty_multiplier = 1.0
         self.__enemies_spawned = 0
         
-        # Logic Boss
-        self.__boss_wave_counter = 1      # Menghitung ini boss gelombang keberapa
-        self.__spawn_boss_next = False    # Flag antrian boss
+        # Logic boss
+        self.__boss_wave_counter = 1
+        self.__spawn_boss_next = False
     
     @property
     def difficulty_multiplier(self) -> float:
@@ -45,28 +41,26 @@ class SpawnManager:
     
     def update_difficulty(self, elapsed_time: float) -> None:
         """
-        Meningkatkan kesulitan seiring waktu (elapsed_time dalam DETIK).
+        Update difficulty berdasarkan waktu (dalam detik).
         Setiap 30 detik: +20% kesulitan, kurangi interval spawn.
         """
-        # 1. Scaling Kesulitan Musuh Biasa
+        # Scaling kesulitan
         self.__difficulty_multiplier = 1.0 + (elapsed_time // 30) * 0.2
         
-        # Kurangi interval spawn (Makin lama makin cepat spawnnya)
-        # Batas minimum 200ms
+        # Kurangi interval spawn (minimum 200ms)
         reduction = int(elapsed_time * 5)
         self.__spawn_interval = max(200, ENEMY_SPAWN_INTERVAL - reduction)
         
-        # 2. Cek Waktunya BOSS
-        # Jika waktu sekarang melebihi (Counter * 60 detik), waktunya Boss muncul!
+        # Cek spawn boss
         if elapsed_time > self.__boss_wave_counter * BOSS_SPAWN_INTERVAL:
-            self.__spawn_boss_next = True   # Tandai spawn berikutnya harus Boss
-            self.__boss_wave_counter += 1   # Siapkan target waktu untuk boss berikutnya
+            self.__spawn_boss_next = True
+            self.__boss_wave_counter += 1
     
     def should_spawn(self) -> bool:
-        """Cek apakah waktunya memunculkan musuh"""
+        """Cek apakah waktunya spawn enemy."""
         current_time = pygame.time.get_ticks()
         
-        # Jika ada antrian Boss, segera spawn tanpa menunggu interval biasa!
+        # Boss langsung spawn tanpa menunggu interval
         if self.__spawn_boss_next:
             return True
             
@@ -76,26 +70,31 @@ class SpawnManager:
         return False
     
     def spawn_enemy(self, groups, player, collision_sprites, enemy_factory):
-        """
-        Memunculkan musuh atau Boss dengan random spawn position.
-        """
+        """Spawn enemy atau boss di posisi random yang valid."""
         player_pos = pygame.Vector2(player.rect.center)
         spawn_pos = None
         
-        # Coba generate posisi spawn yang valid (maks 10 percobaan)
-        for _ in range(10):
-            # Generate random position
-            x = randint(0, self.map_width)
-            y = randint(0, self.map_height)
+        is_boss_spawn = self.__spawn_boss_next
+        
+        # Boss: padding lebih besar dari edge
+        edge_padding = 100 if is_boss_spawn else 50
+        check_size = 192 if is_boss_spawn else 64
+        half_size = check_size // 2
+        max_attempts = 15 if is_boss_spawn else 10
+        
+        # Cari posisi spawn yang valid
+        for _ in range(max_attempts):
+            x = randint(edge_padding, self.map_width - edge_padding)
+            y = randint(edge_padding, self.map_height - edge_padding)
             pos = pygame.Vector2(x, y)
             
             # Cek jarak dari player
-            if (pos - player_pos).length() < ENEMY_SPAWN_DISTANCE:
+            min_distance = ENEMY_SPAWN_DISTANCE * 1.5 if is_boss_spawn else ENEMY_SPAWN_DISTANCE
+            if (pos - player_pos).length() < min_distance:
                 continue
                 
-            # Cek tabrakan dengan collision sprites (tembok, props)
-            # Buat dummy rect size kira-kira ukuran musuh (misal 64x64) untuk cek collision
-            dummy_rect = pygame.Rect(x - 32, y - 32, 64, 64)
+            # Cek collision
+            dummy_rect = pygame.Rect(x - half_size, y - half_size, check_size, check_size)
             collision = False
             for sprite in collision_sprites:
                 if sprite.rect.colliderect(dummy_rect):
@@ -107,21 +106,24 @@ class SpawnManager:
                 break
         
         if spawn_pos and self.__enemy_frames:
-            # Pilih tipe musuh
             enemy_types = list(self.__enemy_frames.keys())
             if not enemy_types: 
                 return None
             
-            chosen_type = choice(enemy_types)
-            
-            # Cek apakah ini jatahnya Boss?
+            # Tentukan tipe enemy
             is_boss_spawn = False
             if self.__spawn_boss_next:
                 is_boss_spawn = True
-                self.__spawn_boss_next = False  # Reset flag setelah boss spawn
-                print(f"WARNING: BOSS {chosen_type.upper()} APPEARED!")
+                self.__spawn_boss_next = False
+                
+                # Boss spawn berurutan
+                boss_index = (self.__boss_wave_counter - 2) % len(BOSS_SEQUENCE)
+                chosen_type = BOSS_SEQUENCE[boss_index]
+                print(f"BOSS WAVE {self.__boss_wave_counter - 1}: {chosen_type.upper()} muncul!")
+            else:
+                chosen_type = choice(enemy_types)
             
-            # Panggil Factory
+            # Buat enemy dengan factory
             enemy = enemy_factory.create_enemy(
                 chosen_type,
                 spawn_pos, 
@@ -130,7 +132,8 @@ class SpawnManager:
                 player,
                 collision_sprites,
                 self.__pathfinder,
-                is_boss=is_boss_spawn
+                is_boss=is_boss_spawn,
+                difficulty_multiplier=self.__difficulty_multiplier
             )
             
             self.__enemies_spawned += 1
@@ -139,7 +142,7 @@ class SpawnManager:
         return None
     
     def reset(self) -> None:
-        """Reset spawn manager"""
+        """Reset spawn manager ke kondisi awal."""
         self.__last_spawn_time = pygame.time.get_ticks()
         self.__difficulty_multiplier = 1.0
         self.__enemies_spawned = 0

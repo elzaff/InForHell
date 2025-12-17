@@ -1,24 +1,20 @@
 """
-COLLISION MANAGER MODULE
-Mengelola semua deteksi tabrakan.
+Collision Manager Module
+Mengelola semua deteksi collision.
 """
 import pygame
-from typing import Optional, List, Dict, Any
 import random
 
 
 class CollisionManager:
-    """
-    Mengelola semua deteksi tabrakan.
-    Methods: check_bullet_enemy(), check_player_enemy(), check_player_item()
-    """
+    """Mengelola collision antara bullet, enemy, dan player."""
     
-    def __init__(self, impact_sound: Optional[pygame.mixer.Sound] = None):
+    def __init__(self, impact_sound=None):
         self.__impact_sound = impact_sound
     
-    def check_bullet_enemy(self, bullet_sprites: pygame.sprite.Group, enemy_sprites: pygame.sprite.Group, player: Any) -> Dict[str, Any]:
+    def check_bullet_enemy(self, bullet_sprites, enemy_sprites, player) -> dict:
         """
-        Cek tabrakan antara peluru dan musuh.
+        Cek collision antara bullet dan enemy.
         Returns: dict dengan 'kills', 'exp_gained', 'level_up'
         """
         result = {
@@ -38,16 +34,14 @@ class CollisionManager:
                         self.__impact_sound.play()
                     
                     for enemy in collision_sprites:
-                        # take_damage return True jika enemy baru mati
                         just_died = enemy.take_damage(bullet.damage)
                         
-                        # Lifesteal check (Plagiat Tugas)
+                        # Lifesteal (Plagiat Tugas)
                         if hasattr(player, 'lifesteal_chance') and player.lifesteal_chance > 0:
                             if random.random() < player.lifesteal_chance:
                                 player.heal(1)
-                                # Optional: Visual feedback bisa ditambah nanti
                         
-                        # Berikan EXP dan kill count hanya jika baru mati
+                        # EXP dan kill count
                         if just_died:
                             exp_reward = enemy.give_exp_reward()
                             if exp_reward > 0:
@@ -63,10 +57,10 @@ class CollisionManager:
         
         return result
     
-    def check_player_enemy(self, player: Any, enemy_sprites: pygame.sprite.Group) -> bool:
+    def check_player_enemy(self, player, enemy_sprites) -> bool:
         """
-        Cek tabrakan antara player dan musuh.
-        Returns: True jika player menerima damage.
+        Cek collision antara player dan enemy.
+        Returns: True jika player kena damage.
         """
         if player.stats.is_alive:
             collided_enemies = pygame.sprite.spritecollide(
@@ -74,29 +68,26 @@ class CollisionManager:
             )
             
             if collided_enemies:
-                # Terima damage dari semua musuh yang bertabrakan
                 for enemy in collided_enemies:
                     if not enemy.is_dead:
                         player.take_damage(enemy.damage)
                 return True
         return False
     
-    def check_player_item(self, player: Any, item_sprites: pygame.sprite.Group) -> List[Any]:
+    def check_player_item(self, player, item_sprites) -> list:
         """
-        Cek tabrakan antara player dan item.
+        Cek collision antara player dan item.
         Returns: list item yang diambil.
         """
         picked_items = []
         
-        # Cek attraction (tarikan magnet) terlebih dahulu
         player_pos = pygame.Vector2(player.rect.center)
         for item in item_sprites:
             if hasattr(item, 'check_attraction'):
                 item.check_attraction(player_pos)
             if hasattr(item, 'move_towards_player'):
-                item.move_towards_player(player_pos, 1/60)  # Asumsi 60 FPS
+                item.move_towards_player(player_pos, 1/60)
         
-        # Cek pickup collision
         collided_items = pygame.sprite.spritecollide(
             player, item_sprites, False, pygame.sprite.collide_mask
         )

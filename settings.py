@@ -1,46 +1,36 @@
 """
-SETTINGS MODULE
-Konstanta dan konfigurasi global untuk game
+Settings Module
+Konfigurasi dan konstanta global untuk game InForHell.
 """
-import pygame 
-from os.path import join 
-from os import walk
 
-
-# ==================== WINDOW SETTINGS ====================
+# Pengaturan Layar
 WINDOW_WIDTH, WINDOW_HEIGHT = 1280, 720 
 TILE_SIZE = 64
-
-
-# ==================== GAME SETTINGS ====================
 FPS = 60
 
-
-# ==================== PLAYER SETTINGS ====================
+# Pengaturan Player
 PLAYER_SPEED = 300
 PLAYER_MAX_HEALTH = 100
 PLAYER_BASE_DAMAGE = 10
 
+# Pengaturan Senjata
+GUN_COOLDOWN = 200          # Cooldown tembakan dalam ms
+BULLET_SPEED = 1200         # Kecepatan peluru
+BULLET_LIFETIME = 1000      # Durasi hidup peluru dalam ms
 
-# ==================== WEAPON SETTINGS ====================
-GUN_COOLDOWN = 200
-BULLET_SPEED = 1200
-BULLET_LIFETIME = 1000
+# Pengaturan Enemy
+ENEMY_SPAWN_INTERVAL = 2000     # Interval spawn enemy dalam ms
+ENEMY_BASE_SPEED = 100          # Kecepatan dasar enemy
+ENEMY_SPAWN_DISTANCE = 600      # Jarak spawn dari player
 
+# Pengaturan Level Up
+EXP_BASE = 100              # EXP yang dibutuhkan untuk level 1
+EXP_MULTIPLIER = 1.5        # Pengali EXP setiap level
+HEALTH_PER_LEVEL = 10       # Bonus HP per level
+DAMAGE_PER_LEVEL = 2        # Bonus damage per level
+SPEED_PER_LEVEL = 5         # Bonus speed per level
 
-# ==================== ENEMY SETTINGS ====================
-ENEMY_SPAWN_INTERVAL = 2000  # milliseconds
-ENEMY_BASE_SPEED = 100
-ENEMY_SPAWN_DISTANCE = 600
-
-
-# ==================== PROGRESSION SETTINGS ====================
-EXP_BASE = 100
-EXP_MULTIPLIER = 1.5
-HEALTH_PER_LEVEL = 20
-
-
-# ==================== UI COLORS ====================
+# Warna UI
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
 RED = (255, 0, 0)

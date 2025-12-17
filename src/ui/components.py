@@ -1,26 +1,26 @@
 """
-UI COMPONENTS MODULE
-Button, HealthBar, ExperienceBar, TextLabel, UpgradeCardUI
+UI Components Module
+Komponen UI seperti Button, HealthBar, ExperienceBar, TextLabel, dan UpgradeCardUI.
 """
 import pygame
-from typing import Tuple, List, Dict, Any
+import random
 from settings import WHITE, BLACK, RED, GREEN, YELLOW, BLUE, DARK_GRAY
 
 
 class UIElement:
-    """Base class untuk elemen UI dengan encapsulation"""
+    """Base class untuk semua elemen UI."""
     
-    def __init__(self, pos: Tuple[int, int], size: Tuple[int, int]):
+    def __init__(self, pos: tuple, size: tuple):
         self.__pos = pos
         self.__size = size
         self.__visible = True
     
     @property
-    def pos(self) -> Tuple[int, int]:
+    def pos(self) -> tuple:
         return self.__pos
     
     @property
-    def size(self) -> Tuple[int, int]:
+    def size(self) -> tuple:
         return self.__size
     
     @property
@@ -35,62 +35,116 @@ class UIElement:
             self._render(surface)
     
     def _render(self, surface: pygame.Surface) -> None:
-        """Override method ini di subclass"""
+        """Method yang di-override oleh subclass."""
         pass
 
 
 class HealthBar(UIElement):
-    """Health bar dengan border dan gradasi warna"""
+    """Health bar dengan overlay image."""
     
-    def __init__(self, pos: Tuple[int, int], size: Tuple[int, int], max_health: int):
+    _overlay_cache = None
+    
+    def __init__(self, pos: tuple, size: tuple, max_health: int):
         super().__init__(pos, size)
         self.__max_health = max_health
         self.__current_health = max_health
-        self.__border_width = 2
+        
+        # Load overlay image (cached) dan scale 2x
+        if HealthBar._overlay_cache is None:
+            try:
+                from os.path import join
+                img = pygame.image.load(join('images', 'ui', 'healthoverlay.png')).convert_alpha()
+                orig_w, orig_h = img.get_size()
+                HealthBar._overlay_cache = pygame.transform.scale(img, (orig_w * 2, orig_h * 2))
+            except:
+                HealthBar._overlay_cache = None
+        
+        self.__overlay = HealthBar._overlay_cache
+        
+        # Area bar fill dalam overlay (scaled 2x)
+        self.__bar_offset_x = 16
+        self.__bar_width = 224
+        self.__bar_height = 18
+        self.__bar_offset_y = 0
     
     def update_health(self, current_health: int) -> None:
         self.__current_health = max(0, min(current_health, self.__max_health))
     
+    def update_max_health(self, max_health: int) -> None:
+        """Update max health untuk level up."""
+        self.__max_health = max_health
+    
     def _render(self, surface: pygame.Surface) -> None:
         x, y = self.pos
-        width, height = self.size
         
-        # Border
-        border_rect = pygame.Rect(x - self.__border_width, y - self.__border_width,
-                                  width + self.__border_width * 2, 
-                                  height + self.__border_width * 2)
-        pygame.draw.rect(surface, WHITE, border_rect, self.__border_width)
-        
-        # Background
-        bg_rect = pygame.Rect(x, y, width, height)
-        pygame.draw.rect(surface, DARK_GRAY, bg_rect)
-        
-        # Health fill
-        health_percentage = self.__current_health / self.__max_health
-        health_width = int(width * health_percentage)
-        
-        if health_width > 0:
-            health_rect = pygame.Rect(x, y, health_width, height)
+        if self.__overlay:
+            # Posisi bar fill
+            overlay_height = self.__overlay.get_height()
+            bar_y = y + (overlay_height - self.__bar_height) // 2
             
-            # Gradasi warna berdasarkan health
-            if health_percentage > 0.5:
-                color = GREEN
-            elif health_percentage > 0.25:
-                color = YELLOW
-            else:
-                color = RED
+            # Health percentage
+            health_percentage = self.__current_health / self.__max_health if self.__max_health > 0 else 0
+            fill_width = int(self.__bar_width * health_percentage)
             
-            pygame.draw.rect(surface, color, health_rect)
+            if fill_width > 0:
+                # Warna berdasarkan health
+                if health_percentage > 0.5:
+                    color = GREEN
+                elif health_percentage > 0.25:
+                    color = YELLOW
+                else:
+                    color = RED
+                
+                fill_rect = pygame.Rect(x + self.__bar_offset_x, bar_y, fill_width, self.__bar_height)
+                pygame.draw.rect(surface, color, fill_rect)
+            
+            # Draw overlay
+            surface.blit(self.__overlay, (x, y))
+            
+            # Text di dalam bar
+            font = pygame.font.Font(None, 20)
+            text = f"{self.__current_health}/{self.__max_health}"
+            text_surf = font.render(text, True, WHITE)
+            text_rect = text_surf.get_rect(center=(x + self.__bar_offset_x + self.__bar_width // 2, 
+                                                    y + overlay_height // 2))
+            surface.blit(text_surf, text_rect)
+        else:
+            # Fallback tanpa overlay
+            width, height = self.size
+            pygame.draw.rect(surface, DARK_GRAY, pygame.Rect(x, y, width, height))
+            health_percentage = self.__current_health / self.__max_health if self.__max_health > 0 else 0
+            health_width = int(width * health_percentage)
+            if health_width > 0:
+                color = GREEN if health_percentage > 0.5 else YELLOW if health_percentage > 0.25 else RED
+                pygame.draw.rect(surface, color, pygame.Rect(x, y, health_width, height))
 
 
 class ExperienceBar(UIElement):
-    """Experience bar untuk menunjukkan progress ke level berikutnya"""
+    """Experience bar dengan overlay image."""
     
-    def __init__(self, pos: Tuple[int, int], size: Tuple[int, int]):
+    _overlay_cache = None
+    
+    def __init__(self, pos: tuple, size: tuple):
         super().__init__(pos, size)
         self.__current_exp = 0
         self.__exp_to_next = 100
-        self.__border_width = 2
+        
+        # Load overlay image (cached) dan scale 2x
+        if ExperienceBar._overlay_cache is None:
+            try:
+                from os.path import join
+                img = pygame.image.load(join('images', 'ui', 'expoverlay.png')).convert_alpha()
+                orig_w, orig_h = img.get_size()
+                ExperienceBar._overlay_cache = pygame.transform.scale(img, (orig_w * 2, orig_h * 2))
+            except:
+                ExperienceBar._overlay_cache = None
+        
+        self.__overlay = ExperienceBar._overlay_cache
+        
+        # Area bar fill dalam overlay (scaled 2x)
+        self.__bar_offset_x = 16
+        self.__bar_width = 224
+        self.__bar_height = 18
     
     def update_exp(self, current_exp: int, exp_to_next: int) -> None:
         self.__current_exp = current_exp
@@ -98,31 +152,43 @@ class ExperienceBar(UIElement):
     
     def _render(self, surface: pygame.Surface) -> None:
         x, y = self.pos
-        width, height = self.size
         
-        # Border
-        border_rect = pygame.Rect(x - self.__border_width, y - self.__border_width,
-                                  width + self.__border_width * 2, 
-                                  height + self.__border_width * 2)
-        pygame.draw.rect(surface, WHITE, border_rect, self.__border_width)
-        
-        # Background
-        bg_rect = pygame.Rect(x, y, width, height)
-        pygame.draw.rect(surface, DARK_GRAY, bg_rect)
-        
-        # EXP fill
-        exp_percentage = self.__current_exp / self.__exp_to_next
-        exp_width = int(width * exp_percentage)
-        
-        if exp_width > 0:
-            exp_rect = pygame.Rect(x, y, exp_width, height)
-            pygame.draw.rect(surface, BLUE, exp_rect)
+        if self.__overlay:
+            overlay_height = self.__overlay.get_height()
+            bar_y = y + (overlay_height - self.__bar_height) // 2
+            
+            # EXP percentage
+            exp_percentage = self.__current_exp / self.__exp_to_next if self.__exp_to_next > 0 else 0
+            fill_width = int(self.__bar_width * exp_percentage)
+            
+            if fill_width > 0:
+                fill_rect = pygame.Rect(x + self.__bar_offset_x, bar_y, fill_width, self.__bar_height)
+                pygame.draw.rect(surface, BLUE, fill_rect)
+            
+            # Draw overlay
+            surface.blit(self.__overlay, (x, y))
+            
+            # Text di dalam bar
+            font = pygame.font.Font(None, 20)
+            text = f"{self.__current_exp}/{self.__exp_to_next}"
+            text_surf = font.render(text, True, WHITE)
+            text_rect = text_surf.get_rect(center=(x + self.__bar_offset_x + self.__bar_width // 2, 
+                                                    y + overlay_height // 2))
+            surface.blit(text_surf, text_rect)
+        else:
+            # Fallback tanpa overlay
+            width, height = self.size
+            pygame.draw.rect(surface, DARK_GRAY, pygame.Rect(x, y, width, height))
+            exp_percentage = self.__current_exp / self.__exp_to_next if self.__exp_to_next > 0 else 0
+            exp_width = int(width * exp_percentage)
+            if exp_width > 0:
+                pygame.draw.rect(surface, BLUE, pygame.Rect(x, y, exp_width, height))
 
 
 class TextLabel(UIElement):
-    """Label untuk menampilkan teks"""
+    """Label untuk menampilkan teks."""
     
-    def __init__(self, pos: Tuple[int, int], text: str, font_size: int = 24, color: Tuple[int, int, int] = WHITE):
+    def __init__(self, pos: tuple, text: str, font_size: int = 24, color: tuple = WHITE):
         super().__init__(pos, (0, 0))
         self.__text = text
         self.__font_size = font_size
@@ -132,7 +198,7 @@ class TextLabel(UIElement):
     def set_text(self, text: str) -> None:
         self.__text = text
     
-    def set_color(self, color: Tuple[int, int, int]) -> None:
+    def set_color(self, color: tuple) -> None:
         self.__color = color
     
     def _render(self, surface: pygame.Surface) -> None:
@@ -141,92 +207,50 @@ class TextLabel(UIElement):
 
 
 class Button:
-    """Button dengan tema Molten Rock & Lava"""
+    """Button dengan image asset dan hover outline."""
+    
+    _button_image_cache = None
     
     def __init__(self, text, pos, width, height, font):
-        # Hitbox utama
-        self.rect = pygame.Rect(0, 0, width, height)
-        self.rect.center = pos
+        # Load image (cached)
+        if Button._button_image_cache is None:
+            try:
+                Button._button_image_cache = pygame.image.load('images/ui/button.png').convert_alpha()
+            except:
+                Button._button_image_cache = None
+        
+        # Scale dengan aspect ratio
+        if Button._button_image_cache:
+            orig_w, orig_h = Button._button_image_cache.get_size()
+            aspect_ratio = orig_h / orig_w
+            new_height = int(width * aspect_ratio)
+            self.image = pygame.transform.scale(Button._button_image_cache, (width, new_height))
+        else:
+            self.image = pygame.Surface((width, height))
+            self.image.fill((60, 40, 40))
+        
+        self.rect = self.image.get_rect(center=pos)
         self.text = text
         self.font = pygame.font.Font(None, 36)
         
-        # --- MOLTEN ROCK & LAVA THEME PALETTE ---
-        self.stone_surface_dark = (62, 40, 40)
-        self.stone_highlight = (80, 55, 50)
-        self.lava_glow_highlight = (255, 140, 0)
-        self.lava_bright = (255, 200, 80)
-        self.magma_crust_outline = (26, 15, 15)
-        self.text_hot_glow = (255, 229, 180)
-        self.heat_shadow = (102, 34, 0)
-        
         self.is_hovered = False
-        
-        self.shadow_rect = self.rect.copy()
-        self.shadow_rect.y += 4
-        self.shadow_rect.x += 4
-        self.lava_shadow = (217, 219, 68)
+        self.text_color = (255, 229, 180)
+        self.shadow_color = (0, 0, 0)
+        self.outline_color = (255, 255, 255)
 
     def draw(self, surface):
-        import random
+        surface.blit(self.image, self.rect)
         
-        # 1. Shadow
-        pygame.draw.rect(surface, self.lava_shadow, self.shadow_rect)
-        
-        # 2. Base stone surface
-        pygame.draw.rect(surface, self.stone_surface_dark, self.rect)
-        
-        # Stone texture
-        random.seed(hash(self.text))
-        for _ in range(15):
-            x = self.rect.left + random.randint(5, self.rect.width - 5)
-            y = self.rect.top + random.randint(5, self.rect.height - 5)
-            pygame.draw.rect(surface, self.stone_highlight, (x, y, 2, 2))
-        
-        # 3. Lava crack pattern
+        # Outline saat hover
         if self.is_hovered:
-            crack_color = self.lava_bright
-        else:
-            crack_color = self.lava_glow_highlight
+            pygame.draw.rect(surface, self.outline_color, self.rect, 3)
         
-        # Horizontal cracks
-        num_horizontal = 4
-        for i in range(num_horizontal):
-            y_pos = self.rect.top + 10 + (i * (self.rect.height - 20) // (num_horizontal - 1))
-            for x_offset in range(0, self.rect.width - 20, 3):
-                x_pos = self.rect.left + 10 + x_offset
-                thickness = 2 if (x_offset // 3) % 3 == 0 else 3
-                pygame.draw.rect(surface, crack_color, (x_pos, y_pos, thickness, 2))
+        # Text dengan shadow
+        shadow_surf = self.font.render(self.text, False, self.shadow_color)
+        shadow_rect = shadow_surf.get_frect(center=(self.rect.centerx + 2, self.rect.centery + 2))
+        surface.blit(shadow_surf, shadow_rect)
         
-        # Vertical cracks
-        num_vertical = 6
-        for i in range(num_vertical):
-            x_pos = self.rect.left + 15 + (i * (self.rect.width - 30) // (num_vertical - 1))
-            for y_offset in range(0, self.rect.height - 25, 4):
-                y_pos = self.rect.top + 10 + y_offset
-                if (y_offset // 4) % 3 != 2:
-                    pygame.draw.rect(surface, crack_color, (x_pos, y_pos, 2, 3))
-        
-        # 4. Border
-        pygame.draw.rect(surface, self.magma_crust_outline, self.rect, 4)
-        
-        if self.is_hovered:
-            inner_rect = self.rect.inflate(-8, -8)
-            pygame.draw.rect(surface, self.lava_glow_highlight, inner_rect, 2)
-        
-        # 5. Text with shadow layers
-        shadow_surf1 = self.font.render(self.text, False, (0, 0, 0))
-        shadow_rect1 = shadow_surf1.get_frect(center=(self.rect.centerx + 3, self.rect.centery + 3))
-        surface.blit(shadow_surf1, shadow_rect1)
-        
-        shadow_surf2 = self.font.render(self.text, False, self.magma_crust_outline)
-        shadow_rect2 = shadow_surf2.get_frect(center=(self.rect.centerx + 2, self.rect.centery + 2))
-        surface.blit(shadow_surf2, shadow_rect2)
-        
-        shadow_surf3 = self.font.render(self.text, False, self.heat_shadow)
-        shadow_rect3 = shadow_surf3.get_frect(center=(self.rect.centerx + 1, self.rect.centery + 1))
-        surface.blit(shadow_surf3, shadow_rect3)
-        
-        text_surf = self.font.render(self.text, False, self.text_hot_glow)
+        text_surf = self.font.render(self.text, False, self.text_color)
         text_rect = text_surf.get_frect(center=self.rect.center)
         surface.blit(text_surf, text_rect)
 
@@ -240,7 +264,7 @@ class Button:
 
 
 class UpgradeCardUI:
-    """UI Kartu Upgrade dengan tema 'Cursed Technology'"""
+    """UI Kartu Upgrade dengan efek visual."""
     
     def __init__(self, card_data, pos: tuple, size: tuple):
         self.card = card_data
@@ -248,7 +272,7 @@ class UpgradeCardUI:
         self.rect = self.base_rect.copy()
         self.is_hovered = False
         
-        # Cursed Technology Color Palette
+        # Warna tema
         self.dark_red = (80, 10, 10)
         self.hell_black = (20, 5, 5)
         self.fire_orange = (255, 100, 20)
@@ -262,14 +286,13 @@ class UpgradeCardUI:
         self.font_desc = pygame.font.Font(None, 24)
         self.font_label = pygame.font.Font(None, 28)
         
-        # Animation variables
+        # Animasi
         self.shake_offset = 0
         self.shake_timer = 0
         self.glow_intensity = 0
         self.noise_offset = 0
         
-        # Generate noise pattern
-        import random
+        # Noise pattern
         random.seed(hash(self.card.name))
         self.noise_pattern = []
         for _ in range(30):
@@ -288,7 +311,6 @@ class UpgradeCardUI:
         return False
     
     def update(self):
-        import random
         if self.is_hovered:
             self.shake_timer += 1
             if self.shake_timer % 3 == 0:
@@ -304,9 +326,7 @@ class UpgradeCardUI:
         self.noise_offset += 1
     
     def draw(self, surface: pygame.Surface):
-        import random
-        
-        # 1. Background
+        # Background
         pygame.draw.rect(surface, self.dark_red, self.rect)
         
         # Digital noise
@@ -316,13 +336,13 @@ class UpgradeCardUI:
             noise_color = (80 + noise_val, 10 + noise_val // 4, 10 + noise_val // 4)
             pygame.draw.rect(surface, noise_color, (self.rect.left + x, self.rect.top + y, sz, sz))
         
-        # 2. Border
+        # Border
         border_color = self.fire_orange if self.is_hovered else self.blood_red
         pygame.draw.rect(surface, border_color, self.rect, 5)
         inner_rect = self.rect.inflate(-10, -10)
         pygame.draw.rect(surface, self.hell_black, inner_rect, 2)
         
-        # 3. Icon slot
+        # Icon
         icon_size = 70
         icon_x = self.rect.left + 20
         icon_y = self.rect.centery - icon_size // 2
@@ -332,7 +352,7 @@ class UpgradeCardUI:
         pygame.draw.rect(surface, self.card.icon_color, inner_icon)
         pygame.draw.rect(surface, border_color, icon_rect, 3)
         
-        # 4. Label
+        # Label
         label_text = self.card.get_label()
         label_color = self.neon_yellow if self.card.is_new else self.matrix_green
         label_surf = self.font_label.render(label_text, False, label_color)
@@ -342,7 +362,7 @@ class UpgradeCardUI:
         pygame.draw.rect(surface, label_color, stamp_bg, 2)
         surface.blit(label_surf, label_rect)
         
-        # 5. Title
+        # Title
         title_x = self.rect.left + 105
         title_y = self.rect.top + 30
         shadow_title = self.font_title.render(self.card.name, False, (0, 0, 0))
@@ -350,7 +370,7 @@ class UpgradeCardUI:
         title_surf = self.font_title.render(self.card.name, False, self.glitch_white)
         surface.blit(title_surf, (title_x, title_y))
         
-        # 6. Description
+        # Description dengan word wrap
         desc_x = self.rect.left + 105
         desc_y = self.rect.top + 65
         words = self.card.description.split(' ')

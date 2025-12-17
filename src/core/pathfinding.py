@@ -1,24 +1,23 @@
 """
-PATHFINDING MODULE
-Menggunakan algoritma A* (A-Star) untuk mencari jalan yang lebih optimal.
+Pathfinding Module
+Algoritma BFS untuk enemy biasa dan A* untuk boss.
 """
-import pygame
-import heapq  # Digunakan untuk Priority Queue pada A*
-from settings import TILE_SIZE
-
 import pygame
 import heapq
 from collections import deque
 from settings import TILE_SIZE
 
+
 class Pathfinder:
+    """Pathfinder menggunakan BFS dan A* algorithm."""
+    
     def __init__(self, tmx_map):
         self.matrix = self.__create_grid(tmx_map)
         self.width = len(self.matrix[0])
         self.height = len(self.matrix)
         
     def __create_grid(self, tmx_map):
-        # ... (Kode grid creation SAMA PERSIS seperti sebelumnya) ...
+        """Buat grid dari TMX map untuk pathfinding."""
         width = tmx_map.width
         height = tmx_map.height
         matrix = [[0 for x in range(width)] for y in range(height)]
@@ -44,12 +43,13 @@ class Pathfinder:
                 pass
         return matrix
 
-    # --- ALGORITMA BFS (Untuk Musuh Biasa) ---
     def get_path_bfs(self, start_pos, target_pos):
+        """BFS pathfinding untuk enemy biasa."""
         start = (int(start_pos[0] // TILE_SIZE), int(start_pos[1] // TILE_SIZE))
         end = (int(target_pos[0] // TILE_SIZE), int(target_pos[1] // TILE_SIZE))
         
-        if start == end: return pygame.Vector2()
+        if start == end: 
+            return pygame.Vector2()
         
         queue = deque([start])
         came_from = {start: None}
@@ -70,7 +70,8 @@ class Pathfinder:
                     queue.append(next_node)
                     came_from[next_node] = current
         
-        if not found: return pygame.Vector2()
+        if not found: 
+            return pygame.Vector2()
         
         # Traceback
         current = end
@@ -83,12 +84,13 @@ class Pathfinder:
         pixel_pos = pygame.Vector2(next_step[0]*TILE_SIZE + TILE_SIZE//2, next_step[1]*TILE_SIZE + TILE_SIZE//2)
         return (pixel_pos - pygame.Vector2(start_pos)).normalize()
 
-    # --- ALGORITMA A* (Untuk Boss) ---
     def get_path_astar(self, start_pos, target_pos):
+        """A* pathfinding untuk boss (lebih optimal)."""
         start = (int(start_pos[0] // TILE_SIZE), int(start_pos[1] // TILE_SIZE))
         end = (int(target_pos[0] // TILE_SIZE), int(target_pos[1] // TILE_SIZE))
         
-        if start == end: return pygame.Vector2()
+        if start == end: 
+            return pygame.Vector2()
 
         def heuristic(a, b):
             return abs(a[0] - b[0]) + abs(a[1] - b[1])
@@ -118,7 +120,8 @@ class Pathfinder:
                         f = tentative_g + heuristic(neighbor, end)
                         heapq.heappush(open_set, (f, neighbor))
         
-        if not found: return pygame.Vector2()
+        if not found: 
+            return pygame.Vector2()
         
         current = end
         path = []
