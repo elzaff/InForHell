@@ -74,7 +74,9 @@ class Game:
         self.__spawn_manager = SpawnManager(
             self.__spawn_positions, 
             self.__enemy_frames, 
-            self.__pathfinder 
+            self.__pathfinder,
+            self.__all_sprites.map_width,
+            self.__all_sprites.map_height
         )
         self.__collision_manager = CollisionManager(self.__impact_sound)
 
@@ -120,36 +122,70 @@ class Game:
                         print(f"Gagal load {file_name}: {e}")
 
     def __setup(self) -> None:
-        try:
-            map = load_pygame(join('data', 'maps', 'world.tmx'))
-        except FileNotFoundError:
-            print("ERROR: Map file not found in data/maps/world.tmx")
-            return
-
+        """Setup dunia game dari TMX map"""
+        map = load_pygame(join('data', 'maps', 'world.tmx'))
+        
+        # Set map dimensions for camera
+        self.__all_sprites.map_width = map.width * TILE_SIZE
+        self.__all_sprites.map_height = map.height * TILE_SIZE
+        
+        # Init Pathfinder
         self.__pathfinder = Pathfinder(map)
 
-        if 'Ground' in map.layernames:
-            for x, y, image in map.get_layer_by_name('Ground').tiles():
+        # Load ground layer (coba kedua nama: 'Ground' atau 'ground')
+        try:
+            for x, y, image in map.get_layer_by_name('ground').tiles():
                 Sprite((x * TILE_SIZE, y * TILE_SIZE), image, self.__all_sprites)
+        except ValueError:
+            if 'Ground' in map.layernames:
+                for x, y, image in map.get_layer_by_name('Ground').tiles():
+                    Sprite((x * TILE_SIZE, y * TILE_SIZE), image, self.__all_sprites)
         
-        if 'Objects' in map.layernames:
-            for obj in map.get_layer_by_name('Objects'):
-                CollisionSprite((obj.x, obj.y), obj.image, (self.__all_sprites, self.__collision_sprites))
+        # Load wall layer jika ada
+        try:
+            for x, y, image in map.get_layer_by_name('Wall').tiles():
+                Sprite((x * TILE_SIZE, y * TILE_SIZE), image, self.__all_sprites)
+        except ValueError:
+            pass  # Layer might not exist or empty
+
+        # Load object layer (coba kedua nama: 'object' atau 'Objects')
+        try:
+            for x, y, image in map.get_layer_by_name('object').tiles():
+                CollisionSprite((x * TILE_SIZE, y * TILE_SIZE), image, (self.__all_sprites, self.__collision_sprites))
+        except ValueError:
+            if 'Objects' in map.layernames:
+                for obj in map.get_layer_by_name('Objects'):
+                    CollisionSprite((obj.x, obj.y), obj.image, (self.__all_sprites, self.__collision_sprites))
         
+        # Load collision layer jika ada
         if 'Collisions' in map.layernames:
             for obj in map.get_layer_by_name('Collisions'):
                 CollisionSprite((obj.x, obj.y), pygame.Surface((obj.width, obj.height)), self.__collision_sprites)
 
         self.__spawn_positions = []
-        if 'Entities' in map.layernames:
-            for obj in map.get_layer_by_name('Entities'):
-                if obj.name == 'Player':
-                    self.__player = Player((obj.x, obj.y), self.__all_sprites, self.__collision_sprites)
-                    self.__player.weapon = WeaponDefault(self.__player, (self.__all_sprites, self.__bullet_sprites))
-                    self.__player.active_skill = KeyboardRain((self.__all_sprites, self.__bullet_sprites))
-                    self.__player.active_skill.set_player(self.__player)
-                else:
-                    self.__spawn_positions.append((obj.x, obj.y))
+        
+        # Load entities
+        for obj in map.get_layer_by_name('Entities'):
+            if obj.name == 'Player' or obj.type == 'Player':
+                self.__player = Player(
+                    pos=(obj.x, obj.y), 
+                    groups=self.__all_sprites, 
+                    collision_sprites=self.__collision_sprites,
+                    map_width=self.__all_sprites.map_width,
+                    map_height=self.__all_sprites.map_height
+                )
+                
+                self.__player.weapon = WeaponDefault(
+                    player=self.__player,
+                    groups=(self.__all_sprites, self.__bullet_sprites)
+                )
+                
+                self.__player.active_skill = KeyboardRain(
+                    groups=(self.__all_sprites, self.__bullet_sprites)
+                )
+                self.__player.active_skill.set_player(self.__player)
+            else:
+                self.__spawn_positions.append((obj.x, obj.y))
 
     def __handle_events(self) -> None:
         event_list = pygame.event.get()

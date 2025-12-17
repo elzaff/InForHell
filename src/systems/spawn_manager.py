@@ -1,9 +1,9 @@
 """
 SPAWN MANAGER MODULE
-Updated: Added Boss Spawn Logic
+Updated: Added Boss Spawn Logic + Random Spawn Position
 """
 import pygame
-from random import choice
+from random import choice, randint
 from typing import List, Tuple, Dict, Any
 from settings import ENEMY_SPAWN_INTERVAL, ENEMY_SPAWN_DISTANCE
 
@@ -17,11 +17,13 @@ class SpawnManager:
     
     def __init__(self, spawn_positions: List[Tuple[int, int]], 
                  enemy_frames: Dict[str, List[pygame.Surface]], 
-                 pathfinder): 
+                 pathfinder, map_width: int, map_height: int): 
                  
         self.__spawn_positions = spawn_positions
         self.__enemy_frames = enemy_frames
         self.__pathfinder = pathfinder 
+        self.map_width = map_width
+        self.map_height = map_height
         
         # Timer & Difficulty
         self.__spawn_interval = ENEMY_SPAWN_INTERVAL
@@ -44,14 +46,15 @@ class SpawnManager:
     def update_difficulty(self, elapsed_time: float) -> None:
         """
         Meningkatkan kesulitan seiring waktu (elapsed_time dalam DETIK).
+        Setiap 30 detik: +20% kesulitan, kurangi interval spawn.
         """
         # 1. Scaling Kesulitan Musuh Biasa
-        # Setiap 30 detik: +20% kesulitan (Stat musuh nanti bisa dikali ini jika mau)
         self.__difficulty_multiplier = 1.0 + (elapsed_time // 30) * 0.2
         
         # Kurangi interval spawn (Makin lama makin cepat spawnnya)
-        # Batas minimum 500ms
-        self.__spawn_interval = max(500, ENEMY_SPAWN_INTERVAL - int(elapsed_time * 10))
+        # Batas minimum 200ms
+        reduction = int(elapsed_time * 5)
+        self.__spawn_interval = max(200, ENEMY_SPAWN_INTERVAL - reduction)
         
         # 2. Cek Waktunya BOSS
         # Jika waktu sekarang melebihi (Counter * 60 detik), waktunya Boss muncul!
@@ -74,36 +77,51 @@ class SpawnManager:
     
     def spawn_enemy(self, groups, player, collision_sprites, enemy_factory):
         """
-        Memunculkan musuh atau Boss.
+        Memunculkan musuh atau Boss dengan random spawn position.
         """
-        # 1. Pilih posisi spawn yang valid (jauh dari player)
         player_pos = pygame.Vector2(player.rect.center)
-        valid_positions = []
+        spawn_pos = None
         
-        for pos in self.__spawn_positions:
-            spawn_pos = pygame.Vector2(pos)
-            distance = (spawn_pos - player_pos).length()
-            if distance > ENEMY_SPAWN_DISTANCE:
-                valid_positions.append(pos)
-        
-        if valid_positions and self.__enemy_frames:
-            spawn_pos = choice(valid_positions)
+        # Coba generate posisi spawn yang valid (maks 10 percobaan)
+        for _ in range(10):
+            # Generate random position
+            x = randint(0, self.map_width)
+            y = randint(0, self.map_height)
+            pos = pygame.Vector2(x, y)
             
-            # 2. Tentukan Jenis Musuh
-            enemy_types = list(self.__enemy_frames.keys()) # ['books', 'slime', dll]
-            if not enemy_types: return None
+            # Cek jarak dari player
+            if (pos - player_pos).length() < ENEMY_SPAWN_DISTANCE:
+                continue
+                
+            # Cek tabrakan dengan collision sprites (tembok, props)
+            # Buat dummy rect size kira-kira ukuran musuh (misal 64x64) untuk cek collision
+            dummy_rect = pygame.Rect(x - 32, y - 32, 64, 64)
+            collision = False
+            for sprite in collision_sprites:
+                if sprite.rect.colliderect(dummy_rect):
+                    collision = True
+                    break
+            
+            if not collision:
+                spawn_pos = pos
+                break
+        
+        if spawn_pos and self.__enemy_frames:
+            # Pilih tipe musuh
+            enemy_types = list(self.__enemy_frames.keys())
+            if not enemy_types: 
+                return None
             
             chosen_type = choice(enemy_types)
             
-            # 3. Cek apakah ini jatahnya Boss?
+            # Cek apakah ini jatahnya Boss?
             is_boss_spawn = False
             if self.__spawn_boss_next:
                 is_boss_spawn = True
-                self.__spawn_boss_next = False # Reset flag setelah boss spawn
-                print(f"WARNING: BOSS {chosen_type.upper()} APPEARED!") # Debug info
+                self.__spawn_boss_next = False  # Reset flag setelah boss spawn
+                print(f"WARNING: BOSS {chosen_type.upper()} APPEARED!")
             
-            # 4. Panggil Factory
-            # Note: Pastikan EnemyFactory di enemies.py sudah support parameter is_boss
+            # Panggil Factory
             enemy = enemy_factory.create_enemy(
                 chosen_type,
                 spawn_pos, 
@@ -112,7 +130,7 @@ class SpawnManager:
                 player,
                 collision_sprites,
                 self.__pathfinder,
-                is_boss=is_boss_spawn # <--- Flag Penting
+                is_boss=is_boss_spawn
             )
             
             self.__enemies_spawned += 1

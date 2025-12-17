@@ -131,9 +131,13 @@ class PlayerStats:
 
 
 class Player(pygame.sprite.Sprite):
-    def __init__(self, pos, groups, collision_sprites):
+    def __init__(self, pos, groups, collision_sprites, map_width, map_height):
         super().__init__(groups)
         
+        # Map boundaries
+        self.map_width = map_width
+        self.map_height = map_height
+
         # Stats & Logic
         self.__stats = PlayerStats()
         self.weapon = None # WeaponDefault (auto-shoot)
@@ -244,6 +248,17 @@ class Player(pygame.sprite.Sprite):
         self.collision('horizontal')
         self.hitbox_rect.y += self.direction.y * speed * dt
         self.collision('vertical')
+        
+        # Clamp to map boundaries
+        if self.hitbox_rect.left < 0:
+            self.hitbox_rect.left = 0
+        if self.hitbox_rect.right > self.map_width:
+            self.hitbox_rect.right = self.map_width
+        if self.hitbox_rect.top < 0:
+            self.hitbox_rect.top = 0
+        if self.hitbox_rect.bottom > self.map_height:
+            self.hitbox_rect.bottom = self.map_height
+
         self.rect.center = self.hitbox_rect.center
 
     def collision(self, direction):
