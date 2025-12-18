@@ -6,8 +6,6 @@ Objek dinamis (Enemy, Weapon) dipindahkan ke modul terpisah.
 import pygame
 
 
-# ==================== BASIC SPRITES ====================
-
 class Sprite(pygame.sprite.Sprite):
     """
     Sprite dasar untuk objek visual (misal: tanah, dekorasi).
