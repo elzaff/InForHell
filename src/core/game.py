@@ -68,11 +68,11 @@ class Game:
         
         # Load audio
         try:
-            self.__shoot_sound = pygame.mixer.Sound(join('audio', 'shoot.wav'))
-            self.__shoot_sound.set_volume(0.2)
-            self.__impact_sound = pygame.mixer.Sound(join('audio', 'impact.ogg'))
+            self.__shoot_sound = pygame.mixer.Sound(join('audio', 'shoot.mp3'))
+            self.__shoot_sound.set_volume(0.4)
+            self.__impact_sound = pygame.mixer.Sound(join('audio', 'impact.mp3'))
             self.__music = pygame.mixer.Sound(join('audio', 'music.wav'))
-            self.__music.set_volume(0.5)
+            self.__music.set_volume(0.4)
         except:
             self.__shoot_sound = None
             self.__impact_sound = None
